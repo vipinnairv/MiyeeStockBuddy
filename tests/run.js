@@ -3489,6 +3489,43 @@ group('signal scanner');
     }
   }
 
+  // ── Answer first: 30-odd cards is a wall to read, not an answer to see ────
+  {
+    const { _sgSplitByFreshness, _sgHeadline } =
+      load(sgSrc, ['_sgSplitByFreshness','_sgHeadline'], { Array, Math, isFinite, Number, String, Date, calcSMA });
+
+    const rows = [
+      { key:'FRESH1', signal:{ barsAgo: 0 } },
+      { key:'FRESH2', signal:{ barsAgo: 10 } },
+      { key:'OLD',    signal:{ barsAgo: 11 } },
+      { key:'NONE',   signal:null },
+    ];
+    const { fresh, rest } = _sgSplitByFreshness(rows, 10);
+    eq('only recent turns are surfaced up front', fresh.map(r => r.key).join(','), 'FRESH1,FRESH2');
+    eq('the boundary is inclusive, so a 10-bar-old turn still counts', fresh.length, 2);
+    eq('older turns and no-signal holdings are kept, just folded away',
+       rest.map(r => r.key).join(','), 'OLD,NONE');
+    eq('nothing is dropped between the two groups', fresh.length + rest.length, rows.length);
+
+    // The common case: many holdings, nothing doing. That has to read as a
+    // plain "no", not as a list the user has to scan to conclude "no".
+    const quiet = _sgHeadline(0, 34);
+    ok('a quiet scan says so outright', /Nothing has changed direction/.test(quiet.text), quiet.text);
+    ok('and names how many were checked', /34/.test(quiet.text), quiet.text);
+    const busy = _sgHeadline(2, 34);
+    ok('a scan with turns leads with the count', /^2 of your 34/.test(busy.text), busy.text);
+    ok('an empty book does not claim to have checked anything',
+       /Nothing to check/.test(_sgHeadline(0, 0).text), _sgHeadline(0, 0).text);
+
+    const { _sgRestLabel } =
+      load(sgSrc, ['_sgRestLabel'], { Array, Math, isFinite, Number, String, Date, calcSMA });
+    eq('with something shown above, the rest are "the other" ones',
+       _sgRestLabel(2, 32), 'Show the other 32 holdings');
+    eq('with nothing shown above there is no "other", just the whole book',
+       _sgRestLabel(0, 34), 'Show all 34 holdings');
+    eq('one holding is not pluralised', _sgRestLabel(0, 1), 'Show all 1 holding');
+  }
+
   {
     const rows = [
       { key:'A', signal:{ barsAgo: 9 } },
