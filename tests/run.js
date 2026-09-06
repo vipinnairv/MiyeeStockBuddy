@@ -3324,6 +3324,29 @@ group('auth gate');
   ok('updating the password re-authenticates before calling CloudAuth.updatePassword',
      /await window\.CloudAuth\.reauthenticate\(pass\);\s*\n\s*await window\.CloudAuth\.updatePassword\(/.test(SRC),
      'password update does not re-auth first');
+  // ── Sign-in screen ────────────────────────────────────────────────────────
+  // "Keep me signed in" has to be applied BEFORE the sign-in call: choosing
+  // persistence afterwards leaves the first session already stored the wrong
+  // way, which on a shared computer is the whole point of unticking it.
+  ok('persistence is set before signIn, not after',
+     /setRemember\(_csRememberMe\(\)\);[\s\S]{0,120}?await window\.CloudAuth\.signIn\(/.test(SRC),
+     'signIn happens before the remember-me choice is applied');
+  ok('unticking it narrows persistence to the tab session',
+     /remember \? browserLocalPersistence : browserSessionPersistence/.test(SRC),
+     'the checkbox does not change Firebase persistence');
+  ok('remember-me defaults to on when the box is absent',
+     /return el \? !!el\.checked : true;/.test(SRC), 'a missing checkbox would sign out silently');
+
+  // Invite-only survived the redesign: no signup tab, no provider that is not
+  // actually configured in this Firebase project.
+  ok('the redesigned screen still offers no way to self-register',
+     !/Create Account/i.test(SRC) && !/createUserWithEmailAndPassword/.test(SRC),
+     'a signup path came back with the new layout');
+  ok('and still points at the invite mailbox',
+     /mailto:miyee\.india@gmail\.com/.test(SRC), 'the request-access route was lost');
+  ok('no Google sign-in button, since that provider is not enabled',
+     !/Continue with Google/i.test(SRC), 'a button was added for an unconfigured provider');
+
   ok('the account badge opens settings rather than signing out immediately',
      /onclick="pmOpenAccountSettings\(\)"/.test(SRC), 'badge still signs out directly');
   // ── the modal must inherit #section-portfolio's scoped theme variables

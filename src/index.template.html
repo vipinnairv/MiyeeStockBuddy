@@ -803,8 +803,11 @@ main{max-width:1400px;margin:0 auto;padding:14px 16px}
 .pm-auth-title{font-size:18px;font-weight:800;color:var(--T1);font-family:var(--font)}
 .pm-auth-sub{font-size:12.5px;color:var(--T3);line-height:1.55;margin-bottom:4px}
 .pm-auth-card .form-input{background:var(--white);border:1px solid var(--bd2);color:var(--T1)}
-.pm-auth-card .btn{border:1px solid transparent}
-.pm-auth-card .btn-sec{border-color:var(--bd2)}
+/* Needs the #section-portfolio prefix to outrank `#section-portfolio .btn`,
+   whose `border:1.5px solid transparent` shorthand otherwise wins on
+   specificity and leaves the secondary buttons here with no visible edge. */
+#section-portfolio .pm-auth-card .btn{border:1.5px solid transparent}
+#section-portfolio .pm-auth-card .btn-sec{border-color:var(--bd2)}
 .pm-auth-msg{font-size:12px;color:var(--T2);min-height:16px;margin-top:2px}
 /* Scoped to #section-portfolio on purpose: these use the Portfolio Manager's
    own light/dark-aware tokens, not the analyser's dark-only --surface/--text3
@@ -813,6 +816,26 @@ main{max-width:1400px;margin:0 auto;padding:14px 16px}
   border:1px solid var(--bd2);background:var(--white);color:var(--T3);cursor:pointer;
   transition:all .15s;font-family:inherit}
 #section-portfolio .sg-mode-btn.on{background:var(--P);border-color:var(--P);color:#fff}
+/* Sign-in screen: branding beside the form on a desktop, stacked on a phone.
+   The brand panel is dark in both themes on purpose - it is a marketing
+   surface with its own contrast, so its text colours are literal whites
+   rather than theme tokens. */
+.pm-auth-split{display:flex;gap:0;width:100%;max-width:880px;margin:0 auto;
+  border-radius:var(--r2);overflow:hidden;box-shadow:var(--sh);border:1px solid var(--bd)}
+.pm-auth-brand{flex:1 1 380px;min-width:0;padding:34px 30px;text-align:left;
+  background:linear-gradient(150deg,#0F172A 0%,#132A4A 55%,#0F4C81 100%);
+  display:flex;flex-direction:column;justify-content:center}
+.pm-auth-split .pm-auth-card{flex:0 1 380px;max-width:none;margin:0;border:none;
+  border-radius:0;box-shadow:none;text-align:left;padding:34px 30px;gap:0}
+/* The card is a flex column with gap:0 here, so the rhythm comes from these
+   instead - the shared .pm-auth-sub margin is tuned for the centred card. */
+.pm-auth-split .pm-auth-sub{margin-bottom:18px}
+.pm-auth-lbl{display:block;font-size:11.5px;font-weight:700;color:var(--T2);margin-bottom:5px}
+@media(max-width:760px){
+  .pm-auth-split{flex-direction:column;max-width:420px}
+  .pm-auth-brand{padding:26px 24px}
+  .pm-auth-split .pm-auth-card{padding:26px 24px}
+}
 .pm-auth-tile{margin-top:6px;padding-top:14px;border-top:1px solid var(--bd);text-align:left}
 .pm-auth-tile-title{font-size:12.5px;font-weight:700;color:var(--T1);margin-bottom:3px}
 .pm-auth-tile-sub{font-size:11.5px;color:var(--T3);line-height:1.55}
@@ -3137,6 +3160,7 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
     signOut as fbSignOut, sendPasswordResetEmail, sendEmailVerification,
     onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential,
     verifyBeforeUpdateEmail, updatePassword as fbUpdatePassword,
+    setPersistence, browserLocalPersistence, browserSessionPersistence,
   } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
   import {
     getFirestore, doc, getDoc, setDoc, serverTimestamp,
@@ -3160,6 +3184,10 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   // firestore object, only these functions, so swapping the backend later
   // touches this block alone.
   window.CloudAuth = {
+    // local = survives closing the browser (the default); session = gone when
+    // the tab closes, which is what "not my computer" actually means.
+    setRemember: (remember) =>
+      setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence),
     signIn: (email, pass) => signInWithEmailAndPassword(auth, email, pass),
     signOut: () => fbSignOut(auth),
     resetPassword: (email) => sendPasswordResetEmail(auth, email),
