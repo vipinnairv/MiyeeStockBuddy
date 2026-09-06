@@ -162,10 +162,71 @@ function _sgRankByRecency(rows) {
   });
 }
 
+// ── Plain English ───────────────────────────────────────────────────────────
+// "Bullish crossover, 14 trades, 43% win, -12% vs hold" is a sentence only a
+// chartist can read. Everyone else needs to be told what happened, when, and
+// whether this pattern has ever been worth acting on for this particular
+// stock - in words, with the uncertainty attached rather than filed off.
+
+// Below this many past occurrences the track record is noise, not evidence,
+// and saying "won 2 of 2, 100%" would be actively misleading.
+const SG_MIN_SAMPLE = 3;
+
+function _sgPlainWhen(barsAgo) {
+  if (barsAgo === 0) return 'today';
+  if (barsAgo === 1) return 'yesterday';
+  if (barsAgo <= 5) return barsAgo + ' trading days ago';
+  if (barsAgo <= 25) return 'about ' + Math.round(barsAgo / 5) + ' weeks ago';
+  return 'about ' + Math.round(barsAgo / 21) + ' months ago';
+}
+
+// Two separate facts, deliberately not blended into a single verdict: what the
+// price just did, and how much that has been worth knowing on this stock. A
+// combined "BUY / AVOID" badge would hide which half the confidence came from.
+function _sgPlainVerdict(signal, bt) {
+  if (!signal) {
+    return {
+      word: 'QUIET', col: 'var(--T3)',
+      headline: 'No turn either way in this window.',
+      record: '', trust: null, trustWord: '', trustCol: 'var(--T3)',
+    };
+  }
+  const up = signal.type === 'bullish';
+  const when = _sgPlainWhen(signal.barsAgo);
+  const out = {
+    word: up ? 'PICKING UP' : 'FADING',
+    col: up ? 'var(--G)' : 'var(--R)',
+    headline: up
+      ? `Its recent average price rose above its longer-term average ${when} - the price has been picking up.`
+      : `Its recent average price fell below its longer-term average ${when} - the price has been fading.`,
+  };
+
+  const n = bt ? bt.nTrades : 0;
+  if (!bt || n < SG_MIN_SAMPLE) {
+    out.trust = 'unknown';
+    out.trustWord = 'TOO FEW EXAMPLES';
+    out.trustCol = 'var(--T3)';
+    out.record = `This pattern has only happened ${n === 0 ? 'no' : n} time${n === 1 ? '' : 's'} on this holding in ${SG_YEARS} years, too few to judge whether it means anything here.`;
+    return out;
+  }
+  const diff = (bt.stratRet != null && bt.buyHold != null) ? bt.stratRet - bt.buyHold : null;
+  const good = diff != null && diff > 0;
+  out.trust = diff == null ? 'unknown' : (good ? 'ok' : 'poor');
+  out.trustWord = diff == null ? 'TOO FEW EXAMPLES' : (good ? 'DECENT RECORD HERE' : 'POOR RECORD HERE');
+  out.trustCol = diff == null ? 'var(--T3)' : (good ? 'var(--G)' : '#F59E0B');
+  const base = `Over ${SG_YEARS} years this pattern happened ${n} times on this holding, and ended in profit ${bt.wins} of those times.`;
+  out.record = diff == null ? base
+    : good
+      ? `${base} Acting on every one of them would have done <b>${Math.abs(diff).toFixed(0)}% better</b> than simply holding the stock and ignoring the signals.`
+      : `${base} Acting on every one of them would have done <b>${Math.abs(diff).toFixed(0)}% worse</b> than simply holding the stock and ignoring the signals.`;
+  return out;
+}
+
 // ── Rendering ───────────────────────────────────────────────────────────────
 
 let _sgCache = null;      // { years, seriesMap } - refetching on every scan would
                           // burn the proxy for no reason; periods change locally
+let _sgLast = null;       // last scan's rows, so the view switch repaints without refetching
 
 function _sgPeriods() {
   const gi = id => {
@@ -226,19 +287,89 @@ async function scanSignals() {
 }
 
 function renderSignalRows(rows, short, long) {
+  _sgLast = { rows, short, long };
+  _sgPaint();
+}
+
+// Which of the two views is showing. Plain is the default: the numbers view is
+// unreadable to anyone who does not already know what a crossover is, and this
+// tab is on the Portfolio Manager side, where most users are investors rather
+// than chartists.
+function _sgMode() {
+  try { return localStorage.getItem('signalsMode') === 'detail' ? 'detail' : 'plain'; }
+  catch (e) { return 'plain'; }
+}
+function setSignalsMode(mode) {
+  try { localStorage.setItem('signalsMode', mode === 'detail' ? 'detail' : 'plain'); } catch (e) {}
+  const b1 = document.getElementById('sgBtnPlain'), b2 = document.getElementById('sgBtnDetail');
+  const plain = mode !== 'detail';
+  if (b1) b1.classList.toggle('on', plain);
+  if (b2) b2.classList.toggle('on', !plain);
+  _sgPaint();
+}
+
+function _sgPaint() {
   const el = document.getElementById('sg-results');
-  if (!el) return;
+  if (!el || !_sgLast) return;
+  const { rows, short, long } = _sgLast;
   const ranked = _sgRankByRecency(rows.filter(r => !r.missing));
   const missing = rows.filter(r => r.missing);
-
   if (!ranked.length) {
     el.innerHTML = `<div style="font-size:12.5px;color:var(--T3);padding:10px 0">Couldn't fetch usable history for any holding just now. Try Scan again.</div>`;
     return;
   }
+  el.innerHTML = _sgMode() === 'detail'
+    ? _sgDetailHtml(ranked, missing, short, long)
+    : _sgPlainHtml(ranked, missing, short, long);
+  // Wrap any jargon that survived (Moving Average, Drawdown, ...) in the
+  // app's own tap-to-explain popovers.
+  try { if (typeof glossaryScan === 'function') glossaryScan(el); } catch (e) {}
+}
 
-  const fired = ranked.filter(r => r.signal);
-  const recent = fired.filter(r => r.signal.barsAgo <= 5).length;
+// One card per holding, in sentences. The two chips say different things on
+// purpose: what the price did, and whether that has been worth knowing here.
+function _sgPlainHtml(ranked, missing, short, long) {
+  const recent = ranked.filter(r => r.signal && r.signal.barsAgo <= 5).length;
+  const cards = ranked.map(r => {
+    const v = _sgPlainVerdict(r.signal, r.bt);
+    const fresh = r.signal && r.signal.barsAgo <= 5;
+    return `<div style="border:1px solid var(--bd);border-radius:var(--r3);padding:13px 15px;margin-bottom:9px;${fresh ? 'background:var(--BL)' : ''}">
+      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:6px">
+        <span style="font-weight:800;font-size:13.5px;color:var(--T1)">${r.key}</span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 8px;border-radius:20px;color:#fff;background:${v.col}">${v.word}</span>
+        ${v.trustWord ? `<span style="font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 8px;border-radius:20px;border:1px solid ${v.trustCol};color:${v.trustCol}">${v.trustWord}</span>` : ''}
+      </div>
+      <div style="font-size:12.5px;color:var(--T2);line-height:1.6">${v.headline}</div>
+      ${v.record ? `<div style="font-size:12px;color:var(--T3);line-height:1.6;margin-top:5px">${v.record}</div>` : ''}
+    </div>`;
+  }).join('');
 
+  return `
+    <div style="font-size:12.5px;color:var(--T2);line-height:1.65;margin-bottom:12px">
+      This checks whether each holding's <b>average price over the last ${short} days</b> has crossed
+      its <b>average over the last ${long} days</b>. Crossing upward is the classic hint that a price is
+      turning up; crossing down, that it is turning down. It is an old and very simple idea, and on
+      plenty of stocks it works no better than doing nothing - so each holding below also shows what
+      this pattern has actually been worth on <i>that</i> stock.
+    </div>
+    <div style="font-size:12.5px;color:var(--T2);margin-bottom:12px">
+      Checked <b>${ranked.length}</b> holdings. ${recent
+        ? `<b style="color:var(--P)">${recent}</b> turned in the last week or so.`
+        : 'None turned in the last week or so.'}
+      ${missing.length ? `<span style="color:var(--T3)"> (${missing.length} had no usable price history)</span>` : ''}
+    </div>
+    ${cards}
+    <div style="font-size:11.5px;color:var(--T3);line-height:1.6;margin-top:12px;padding:9px 13px;background:var(--BL);border-radius:var(--r3)">
+      <b>How to read this.</b> A signal is not a recommendation, and this app is not investment advice.
+      The most useful line on each card is the second one: if acting on this pattern would have done
+      <i>worse</i> than simply holding the stock, then the signal is not telling you anything you can
+      profit from, however confident the label above it looks. Past behaviour is not a forecast, and the
+      comparison ignores brokerage, taxes and slippage, so real trading would come out somewhat worse.
+    </div>`;
+}
+
+function _sgDetailHtml(ranked, missing, short, long) {
+  const recent = ranked.filter(r => r.signal && r.signal.barsAgo <= 5).length;
   const body = ranked.map(r => {
     const s = r.signal, bt = r.bt;
     if (!s) {
@@ -262,7 +393,7 @@ function renderSignalRows(rows, short, long) {
     </tr>`;
   }).join('');
 
-  el.innerHTML = `
+  return `
     <div style="font-size:12.5px;color:var(--T2);margin-bottom:10px">
       Scanned <b>${ranked.length}</b> holdings on the <b>${short}/${long}</b> SMA crossover.
       ${recent ? `<b style="color:var(--P)">${recent}</b> crossed in the last 5 bars.` : 'None crossed in the last 5 bars.'}
@@ -289,12 +420,20 @@ function renderSignalRows(rows, short, long) {
 function renderSignals() {
   const el = document.getElementById('sg-results');
   if (!el) return;
+  // Reflect the remembered view on the buttons before anything is painted, so
+  // the highlighted button and the content below it never disagree.
+  const plain = _sgMode() !== 'detail';
+  const b1 = document.getElementById('sgBtnPlain'), b2 = document.getElementById('sgBtnDetail');
+  if (b1) b1.classList.toggle('on', plain);
+  if (b2) b2.classList.toggle('on', !plain);
+
   const sp = (typeof _selfProxyUrl === 'function') ? _selfProxyUrl() : '';
   if (!sp) {
     el.innerHTML = `<div style="font-size:12.5px;color:var(--T3);padding:10px 0">The scanner needs price history, which comes through the data proxy. Deploy the Worker in <code>proxy/README.md</code> and this fills in automatically.</div>`;
     return;
   }
-  el.innerHTML = `<div style="font-size:12.5px;color:var(--T3);padding:10px 0">Set the two averages above and press Scan.</div>`;
+  if (_sgLast) { _sgPaint(); return; }        // came back to the tab: keep the last scan
+  el.innerHTML = `<div style="font-size:12.5px;color:var(--T3);padding:10px 0">Press <b>Scan Holdings</b> above to check your holdings for a change of direction.</div>`;
 }
 
 // Periods changed: the cached history is still good, only the maths is stale.

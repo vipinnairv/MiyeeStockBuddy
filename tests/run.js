@@ -3435,6 +3435,60 @@ group('signal scanner');
   eq('too short a series backtests to null rather than to a fake record',
      _sgBacktest(mkSeries([1,2,3]), 2, 4), null);
 
+  // ── Plain English: the numbers view is unreadable without chart literacy,
+  //    so the default view has to say what happened and whether it has been
+  //    worth knowing - without overclaiming from a handful of examples ──────
+  {
+    const { _sgPlainVerdict, _sgPlainWhen } =
+      load(sgSrc, ['_sgPlainVerdict','_sgPlainWhen'], { Array, Math, isFinite, Number, String, Date, calcSMA });
+
+    eq('today reads as today, not "0 bars"', _sgPlainWhen(0), 'today');
+    eq('yesterday reads as yesterday', _sgPlainWhen(1), 'yesterday');
+    eq('a few days stays in days', _sgPlainWhen(3), '3 trading days ago');
+    ok('a few weeks is rounded to weeks', /weeks ago$/.test(_sgPlainWhen(12)), _sgPlainWhen(12));
+    ok('months are rounded to months', /months ago$/.test(_sgPlainWhen(60)), _sgPlainWhen(60));
+
+    {
+      const v = _sgPlainVerdict(null, null);
+      eq('no signal says so plainly rather than showing a blank row', v.word, 'QUIET');
+      ok('and carries no track-record claim', v.record === '', v.record);
+    }
+    {
+      // Four past occurrences, rule beat holding: a usable record.
+      const v = _sgPlainVerdict({ type:'bullish', barsAgo:1 },
+        { nTrades:4, wins:3, winRate:75, stratRet:30, buyHold:10 });
+      eq('an upward turn is described in words, not as "bullish"', v.word, 'PICKING UP');
+      ok('the headline says what happened and when',
+         /picking up/.test(v.headline) && /yesterday/.test(v.headline), v.headline);
+      eq('a rule that beat holding is marked as such', v.trust, 'ok');
+      ok('and the record says how much better, in plain terms',
+         /better/.test(v.record) && /20%/.test(v.record), v.record);
+      ok('no jargon leaks into the plain view',
+         !/SMA|crossover|bullish|bearish/i.test(v.headline + v.record + v.word), 'jargon leaked');
+    }
+    {
+      const v = _sgPlainVerdict({ type:'bearish', barsAgo:0 },
+        { nTrades:14, wins:6, winRate:42.8, stratRet:-12, buyHold:20 });
+      eq('a downward turn reads as fading', v.word, 'FADING');
+      eq('a rule that trailed holding is flagged, not hidden', v.trust, 'poor');
+      ok('and says plainly that acting on it did worse',
+         /worse/.test(v.record) && /32%/.test(v.record), v.record);
+    }
+    {
+      // Two wins from two tries is not a 100% strike rate, it is no evidence.
+      const v = _sgPlainVerdict({ type:'bullish', barsAgo:2 },
+        { nTrades:2, wins:2, winRate:100, stratRet:50, buyHold:5 });
+      eq('a tiny sample is called too few rather than a perfect record', v.trust, 'unknown');
+      ok('the record says so in words', /too few/i.test(v.record), v.record);
+      ok('and never advertises the flattering win rate', !/100/.test(v.record), v.record);
+    }
+    {
+      const v = _sgPlainVerdict({ type:'bullish', barsAgo:2 }, null);
+      eq('a holding with no backtest at all is also "too few"', v.trust, 'unknown');
+      ok('and still describes the price move', /picking up/.test(v.headline), v.headline);
+    }
+  }
+
   {
     const rows = [
       { key:'A', signal:{ barsAgo: 9 } },
