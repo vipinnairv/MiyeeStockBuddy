@@ -90,8 +90,17 @@ function _rkMetrics(portRets, benchRets, rf){
   // threshold there is no measurable risk, so Sharpe is undefined, not enormous.
   const VOL_EPS = 1e-6;
   const vol = rawVol < VOL_EPS ? 0 : rawVol;
-  const meanDaily = rs.reduce((a,b)=>a+b,0) / rs.length;
-  const annRet = (Math.pow(1 + meanDaily, RISK_TRADING_DAYS) - 1) * 100;
+  // Geometric (time-weighted) annualisation, not the arithmetic mean compounded.
+  // The mean of a return series always exceeds its geometric mean whenever the
+  // returns vary, so compounding the mean overstates what the portfolio
+  // actually earned - and the gap widens exactly as volatility rises, which is
+  // the worst place for a risk panel to flatter itself. Compounding the real
+  // path and annualising that is what an investor actually experienced.
+  let growth = 1;
+  for (const r of rs) growth *= (1 + r);
+  const annRet = growth > 0
+    ? (Math.pow(growth, RISK_TRADING_DAYS / rs.length) - 1) * 100
+    : -100;                                  // a wipe-out cannot be annualised
   const rfPct = isFinite(+rf) ? +rf : RISK_FREE_DEFAULT;
   const sharpe = vol >= VOL_EPS ? (annRet - rfPct) / vol : null;
   const b = _rkBeta(portRets, benchRets);

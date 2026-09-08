@@ -420,6 +420,9 @@ function _sgPlainHtml(ranked, missing, short, long) {
         <br><br>
         None of this is investment advice, past behaviour is not a forecast, and the comparison ignores
         brokerage, taxes and slippage, so real trading would come out somewhat worse.
+        Both sides count price only, not dividends - and since holding collects them while a rule
+        that sits in cash between signals does not, the case for simply holding is a little
+        stronger than the comparison above already shows.
       </div>
     </details>`;
 }

@@ -5386,12 +5386,70 @@ function generateSignals(closes, highs, lows, rsi, macd, sma20, sma50, sma200, b
     });
   }
 
-  // Compute composite score 0-100
+  // ── Compute composite score 0-100, weighted by FAMILY not by indicator ──
+  //
+  // Summing indicator weights directly treats the inputs as independent
+  // opinions. They are not: RSI, Stochastic, CCI and MFI correlate 0.71 to
+  // 0.93 with each other, so five oscillators saying "overbought" is close to
+  // one measurement stated five times. Under the old flat sum, momentum took
+  // roughly 31% of the score through sheer membership while volume took 4%
+  // (OBV alone) and volatility 5% (Bollinger alone) - and adding a sixth
+  // oscillator would have silently raised momentum's share again.
+  //
+  // So each family votes its own internal consensus first, and the families
+  // are then combined on fixed shares. Membership no longer buys influence.
+  // A family with nothing to say (a feed with no volume, say) is dropped and
+  // its share redistributed across the rest, rather than counting as neutral,
+  // which would drag every score toward 50.
+  const famOf = {
+    SMA20:'trend', SMA50:'trend', SMA200:'trend', Cross:'trend',
+    EMAcross:'trend', PSAR:'trend', ST:'trend', ADX:'trend',
+    RSI:'momentum', Stoch:'momentum', CCI:'momentum', MFI:'momentum',
+    MACD:'momentum', RSIDiv:'momentum',
+    OBV:'volume',
+    BB:'volatility',
+  };
+  const famShare = { trend:40, momentum:30, volume:15, volatility:15 };
+  const fam = {};
   let totalW = 0, bullW = 0;
-  sigs.forEach(s => { if (s.w > 0) { totalW += s.w; if (s.dir > 0) bullW += s.w; } });
-  const score = totalW > 0 ? (bullW / totalW) * 100 : 50;
+  sigs.forEach(s => {
+    const f = famOf[s.name] || 'trend';
+    if (!fam[f]) fam[f] = { bull:0, total:0, n:0, present:0 };
+    fam[f].present++;                                     // counted before muting
+    if (!(s.w > 0)) return;                               // muted or deliberately neutral
+    totalW += s.w; if (s.dir > 0) bullW += s.w;           // kept for display
+    fam[f].total += s.w; fam[f].n++;
+    if (s.dir > 0) fam[f].bull += s.w;
+  });
+  // A family speaks with the authority of the members that actually survived.
+  // The ADX gate above mutes counter-trend oscillators precisely because the
+  // regime makes them unreliable, so when four of a family's six members are
+  // muted the family genuinely has less to say - the survivors must not
+  // inherit its full share. Without this, one bullish divergence left standing
+  // in a strong downtrend spoke for the whole of momentum, carrying 30% of the
+  // score on its own where it previously carried about 8%.
+  let shareSum = 0, weighted = 0;
+  Object.keys(fam).forEach(f => {
+    if (!(fam[f].total > 0)) return;
+    const sh = (famShare[f] || 0) * (fam[f].n / Math.max(1, fam[f].present));
+    if (!(sh > 0)) return;
+    shareSum += sh;
+    weighted += sh * (fam[f].bull / fam[f].total);
+  });
+  const score = shareSum > 0 ? (weighted / shareSum) * 100
+              : (totalW > 0 ? (bullW / totalW) * 100 : 50);
   const bullCount = sigs.filter(s => s.dir > 0).length;
   const bearCount = sigs.filter(s => s.dir < 0).length;
+  // Category agreement is the honest headline: "3 of 4 categories agree" says
+  // something "12 of 16 indicators agree" does not, because the categories are
+  // genuinely measuring different things.
+  const famBreakdown = Object.keys(fam).map(f => ({
+    family: f, members: fam[f].n,
+    lean: fam[f].bull / fam[f].total > 0.5 ? 1 : (fam[f].bull / fam[f].total < 0.5 ? -1 : 0),
+    bullPct: fam[f].bull / fam[f].total * 100,
+  }));
+  const famBull = famBreakdown.filter(f => f.lean > 0).length;
+  const famBear = famBreakdown.filter(f => f.lean < 0).length;
 
   // ── ADX market-regime gate ────────────────────────────────────────────
   // Below 20 the market is ranging; trend-following indicators (Supertrend,
@@ -5447,7 +5505,7 @@ function generateSignals(closes, highs, lows, rsi, macd, sma20, sma50, sma200, b
   return {
     swing, short, long,
     verdict, regime, isChop, adxGate:isChop,
-    score, bullCount, bearCount,
+    score, bullCount, bearCount, famBreakdown, famBull, famBear,
     rsiV, macdV, sigV, histV, macdCrossUp, macdCrossDown,
     sma20v, sma50v, sma200v, bbD, atrV,
     support: f2(support), resist: f2(resist), fib,
@@ -8662,7 +8720,7 @@ function renderResults() {
     { label:'Supertrend',      value:signals.stV===1?'BULLISH ▲':'BEARISH ▼', sub:`Line ${CUR()}${signals.stLine}`, cls:signals.stV===1?'up':'down', color:signals.stV===1?'var(--green)':'var(--red)' },
     { label:'MFI (14)',        value:signals.mfiV||'--', sub:parseFloat(signals.mfiV)<=20?'⚡ Oversold':parseFloat(signals.mfiV)>=80?'🔥 Overbought':'- Neutral', cls:parseFloat(signals.mfiV)<=20?'up':parseFloat(signals.mfiV)>=80?'down':'neutral', color:'var(--accent)' },
     { label:'ATR (14)',        value:`${CUR()}${signals.atrV?.toFixed(0)||'--'}`, sub:`${((signals.atrV/currentPrice)*100).toFixed(1)}% daily range`, cls:'neutral', color:'var(--text3)' },
-    { label:'Score',           value:`${signals.score.toFixed(0)}/100`, sub:`${signals.bullCount}↑ ${signals.bearCount}↓ · ${signals.bullCount+signals.bearCount} indicators`, cls:signals.score>=60?'up':signals.score<=40?'down':'neutral', color:signals.score>=60?'var(--green)':signals.score<=40?'var(--red)':'var(--accent)' },
+    { label:'Score',           value:`${signals.score.toFixed(0)}/100`, sub:`${signals.famBull||0} of ${(signals.famBreakdown||[]).length} categories bullish · ${signals.bullCount}↑ ${signals.bearCount}↓`, cls:signals.score>=60?'up':signals.score<=40?'down':'neutral', color:signals.score>=60?'var(--green)':signals.score<=40?'var(--red)':'var(--accent)' },
   ];
   document.getElementById('kpiStrip').innerHTML = kpis.map(k=>`
     <div class="kpi-card" style="--kpi-color:${k.color}">
@@ -10222,7 +10280,7 @@ function _buildTechSnapshot(ar) {
   return `ANALYSIS DATE: ${today}
 STOCK: ${company} (${symbol}) | MARKET: ${market || marketMode.toUpperCase()} | PRICE: ${cur}${currentPrice.toFixed(2)}
 
-COMPOSITE SIGNAL SCORE: ${s.score?.toFixed(0)}/100 | ${s.bullCount} Bullish vs ${s.bearCount} Bearish (of ${(s.bullCount||0)+(s.bearCount||0)} signals)
+COMPOSITE SIGNAL SCORE: ${s.score?.toFixed(0)}/100 | ${s.famBull||0} of ${(s.famBreakdown||[]).length} categories bullish (trend/momentum/volume/volatility, weighted by category so correlated oscillators cannot vote twice) | ${s.bullCount} Bullish vs ${s.bearCount} Bearish across ${(s.bullCount||0)+(s.bearCount||0)} individual signals
 OVERALL RECOMMENDATIONS: Swing→${s.swing?.signal} | Short→${s.short?.signal} | Long→${s.long?.signal} | Confidence: ${s.long?.confidence}%
 
 MOMENTUM (5 indicators):
@@ -12125,8 +12183,17 @@ function _rkMetrics(portRets, benchRets, rf){
   // threshold there is no measurable risk, so Sharpe is undefined, not enormous.
   const VOL_EPS = 1e-6;
   const vol = rawVol < VOL_EPS ? 0 : rawVol;
-  const meanDaily = rs.reduce((a,b)=>a+b,0) / rs.length;
-  const annRet = (Math.pow(1 + meanDaily, RISK_TRADING_DAYS) - 1) * 100;
+  // Geometric (time-weighted) annualisation, not the arithmetic mean compounded.
+  // The mean of a return series always exceeds its geometric mean whenever the
+  // returns vary, so compounding the mean overstates what the portfolio
+  // actually earned - and the gap widens exactly as volatility rises, which is
+  // the worst place for a risk panel to flatter itself. Compounding the real
+  // path and annualising that is what an investor actually experienced.
+  let growth = 1;
+  for (const r of rs) growth *= (1 + r);
+  const annRet = growth > 0
+    ? (Math.pow(growth, RISK_TRADING_DAYS / rs.length) - 1) * 100
+    : -100;                                  // a wipe-out cannot be annualised
   const rfPct = isFinite(+rf) ? +rf : RISK_FREE_DEFAULT;
   const sharpe = vol >= VOL_EPS ? (annRet - rfPct) / vol : null;
   const b = _rkBeta(portRets, benchRets);
@@ -12635,6 +12702,9 @@ function _sgPlainHtml(ranked, missing, short, long) {
         <br><br>
         None of this is investment advice, past behaviour is not a forecast, and the comparison ignores
         brokerage, taxes and slippage, so real trading would come out somewhat worse.
+        Both sides count price only, not dividends - and since holding collects them while a rule
+        that sits in cash between signals does not, the case for simply holding is a little
+        stronger than the comparison above already shows.
       </div>
     </details>`;
 }
@@ -13369,8 +13439,38 @@ function computeRatios(t, fund, price){
     r.grossMargin = on(['TotalRevenue', 'CostOfRevenue'], (rev, c) => pctOf(rev - c, rev));
   r.opMargin  = on(['OperatingIncome', 'TotalRevenue'], (o, rev) => pctOf(o, rev));
   r.netMargin = on(['NetIncome', 'TotalRevenue'], (n, rev) => pctOf(n, rev));
-  r.roe       = on(['NetIncome', 'StockholdersEquity'], (n, e) => pctOf(n, e));
-  r.roa       = on(['NetIncome', 'TotalAssets'], (n, a) => pctOf(n, a));
+  // ROE and ROA divide a FLOW (a year of profit) by a STOCK (a balance at one
+  // instant). Using the closing balance alone understates the return of any
+  // company that raised equity or bought assets during the year, because the
+  // whole of the new capital sits in the denominator while only the part of
+  // the year it was employed shows up in the numerator. The textbook
+  // denominator, and the one Screener.in and most data providers use, is the
+  // average of the opening and closing balance.
+  //
+  // Where only one period is reported there is nothing to average, so it falls
+  // back to the closing balance and says so rather than silently mixing bases.
+  const avgDenom = (flowKey, stockKey) => {
+    const c = _rtCommon(t, [flowKey, stockKey]);
+    if(!c) return null;
+    const flow = c.v[0], closing = c.v[1];
+    const m = t.line[stockKey] || {};
+    let opening = null;
+    let seen = false;
+    for(const d of t.periodsAll){
+      if(d === c.date){ seen = true; continue; }
+      if(seen && m[d] != null){ opening = m[d]; break; }   // the next period back
+    }
+    const denom = opening != null ? (closing + opening) / 2 : closing;
+    return { pct: pctOf(flow, denom), averaged: opening != null, date: c.date };
+  };
+  const roeR = avgDenom('NetIncome', 'StockholdersEquity');
+  const roaR = avgDenom('NetIncome', 'TotalAssets');
+  r.roe = roeR ? roeR.pct : null;
+  r.roa = roaR ? roaR.pct : null;
+  // Surfaced so the panel can name the basis rather than leaving the reader to
+  // wonder why the figure differs from another site by a few points.
+  r.roeAveraged = !!(roeR && roeR.averaged);
+  r.roaAveraged = !!(roaR && roaR.averaged);
   r.periodUsed = at(['NetIncome', 'TotalAssets']) || at(['NetIncome', 'TotalRevenue']);
   // ROCE: operating profit against capital actually tied up in the business.
   // Capital employed must be positive for the ratio to mean anything.
@@ -13720,6 +13820,9 @@ function ratiosHtml(t, fund, price){
     <div class="rt-foot">Computed in your browser from the reported statements above and the current price, nothing is sent anywhere.
       n/r means the source did not carry the inputs, so the ratio is not shown rather than estimated.
       Colours are broad rules of thumb across ordinary businesses; a capital-heavy company and an asset-light one are not judged on the same numbers.
+      ${(r.roeAveraged || r.roaAveraged)
+        ? 'ROE and ROA divide profit by the <b>average</b> of the opening and closing balance, which is the usual basis and the one most data providers use.'
+        : 'ROE and ROA here divide profit by the <b>closing</b> balance: only one period was reported, so there was no opening balance to average against. Sites that average will differ slightly.'}
       Hover any label for what it measures.</div>
   </div>`;
 }
