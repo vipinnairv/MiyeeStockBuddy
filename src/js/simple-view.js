@@ -20,19 +20,36 @@ function _svReadouts(s, price){
       ? 'a very strong trend is running; moves in the trend direction tend to keep going.'
       : adx>=25 ? 'there is a real trend in place, so trend signals carry weight.'
       : 'the price is drifting sideways with no real trend. Breakout and trend signals misfire most often here.') });
-  if(s.sma50v && s.sma200v) out.push({ c: (price>s.sma50v&&price>s.sma200v)?chip('ABOVE','var(--green)'):(price<s.sma50v&&price<s.sma200v)?chip('BELOW','var(--red)'):chip('MIXED','var(--accent)'),
-    t: `<b>The bigger picture</b>, price is ` + (price>s.sma50v?'above':'below') + ' its 50-day average and '
-      + (price>s.sma200v?'above':'below') + ' its 200-day average. '
-      + ((price>s.sma50v&&price>s.sma200v)?'Both point up: this is an uptrend.'
-        :(price<s.sma50v&&price<s.sma200v)?'Both point down: this is a downtrend.'
-        :'They disagree, the trend is turning or unclear.') });
+  // The badge and the sentence are derived from ONE comparison. They used to
+  // come from two: a three-way test for the badge, and two-way ternaries with
+  // no equality branch for the prose. On a stock sitting exactly on both
+  // averages that produced "price is below ... and below ... They disagree" -
+  // a sentence that is both factually wrong and at odds with itself.
+  if(s.sma50v && s.sma200v){
+    const rel = (p,ma) => p > ma ? 'above' : p < ma ? 'below' : 'exactly at';
+    const r50 = rel(price, s.sma50v), r200 = rel(price, s.sma200v);
+    const bothUp = r50==='above' && r200==='above';
+    const bothDn = r50==='below' && r200==='below';
+    const bothAt = r50==='exactly at' && r200==='exactly at';
+    out.push({ c: bothUp?chip('ABOVE','var(--green)'):bothDn?chip('BELOW','var(--red)'):chip('MIXED','var(--accent)'),
+      t: `<b>The bigger picture</b>, price is ${r50} its 50-day average and ${r200} its 200-day average. `
+        + (bothUp ? 'Both point up: this is an uptrend.'
+          : bothDn ? 'Both point down: this is a downtrend.'
+          : bothAt ? 'It is sitting right on both, which usually means it has barely moved.'
+          : 'They disagree, the trend is turning or unclear.') });
+  }
   if(s.macdCrossUp||s.macdCrossDown) out.push({ c: s.macdCrossUp?chip('TURNING UP','var(--green)'):chip('TURNING DOWN','var(--red)'),
     t: `<b>Momentum shift (MACD)</b>, momentum just crossed ${s.macdCrossUp?'upward, an early sign buyers are taking over':'downward, an early sign sellers are taking over'}. Early signals like this fail often on their own; they matter most when the trend agrees.` });
   if(s.stV!=null) out.push({ c: s.stV===1?chip('BUY SIDE','var(--green)'):chip('SELL SIDE','var(--red)'),
     t: `<b>Trend line (Supertrend)</b>, the trailing trend line sits at ${CUR()}${s.stLine} and currently favours the ${s.stV===1?'upside':'downside'}. A close through it is the usual signal to flip.` });
+  // A zero ATR means the stock has not moved at all, so "set your stop wider
+  // than this" would be advice to use a stop of zero. Say what is actually
+  // happening instead of dressing an absence of trading up as a risk figure.
   const atr=n(s.atrV);
-  if(isFinite(atr)&&price) out.push({ c: chip('SWING','var(--text3)'),
+  if(isFinite(atr)&&price&&atr>0) out.push({ c: chip('SWING','var(--text3)'),
     t: `<b>Typical daily swing (ATR)</b>, this stock moves about ${CUR()}${atr.toFixed(2)} (${(atr/price*100).toFixed(1)}%) on an average day. Set stops wider than this, or normal noise will knock you out.` });
+  else if(isFinite(atr)&&price) out.push({ c: chip('NO MOVEMENT','var(--text3)'),
+    t: `<b>Typical daily swing (ATR)</b>, this stock has not moved over the period measured. That usually means it is illiquid, suspended, or the price feed is stale, and it is why the readings above are unreliable for it.` });
   return out;
 }
 function renderSimpleView(){
