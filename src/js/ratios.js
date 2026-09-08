@@ -163,8 +163,38 @@ function computeRatios(t, fund, price){
     r.grossMargin = on(['TotalRevenue', 'CostOfRevenue'], (rev, c) => pctOf(rev - c, rev));
   r.opMargin  = on(['OperatingIncome', 'TotalRevenue'], (o, rev) => pctOf(o, rev));
   r.netMargin = on(['NetIncome', 'TotalRevenue'], (n, rev) => pctOf(n, rev));
-  r.roe       = on(['NetIncome', 'StockholdersEquity'], (n, e) => pctOf(n, e));
-  r.roa       = on(['NetIncome', 'TotalAssets'], (n, a) => pctOf(n, a));
+  // ROE and ROA divide a FLOW (a year of profit) by a STOCK (a balance at one
+  // instant). Using the closing balance alone understates the return of any
+  // company that raised equity or bought assets during the year, because the
+  // whole of the new capital sits in the denominator while only the part of
+  // the year it was employed shows up in the numerator. The textbook
+  // denominator, and the one Screener.in and most data providers use, is the
+  // average of the opening and closing balance.
+  //
+  // Where only one period is reported there is nothing to average, so it falls
+  // back to the closing balance and says so rather than silently mixing bases.
+  const avgDenom = (flowKey, stockKey) => {
+    const c = _rtCommon(t, [flowKey, stockKey]);
+    if(!c) return null;
+    const flow = c.v[0], closing = c.v[1];
+    const m = t.line[stockKey] || {};
+    let opening = null;
+    let seen = false;
+    for(const d of t.periodsAll){
+      if(d === c.date){ seen = true; continue; }
+      if(seen && m[d] != null){ opening = m[d]; break; }   // the next period back
+    }
+    const denom = opening != null ? (closing + opening) / 2 : closing;
+    return { pct: pctOf(flow, denom), averaged: opening != null, date: c.date };
+  };
+  const roeR = avgDenom('NetIncome', 'StockholdersEquity');
+  const roaR = avgDenom('NetIncome', 'TotalAssets');
+  r.roe = roeR ? roeR.pct : null;
+  r.roa = roaR ? roaR.pct : null;
+  // Surfaced so the panel can name the basis rather than leaving the reader to
+  // wonder why the figure differs from another site by a few points.
+  r.roeAveraged = !!(roeR && roeR.averaged);
+  r.roaAveraged = !!(roaR && roaR.averaged);
   r.periodUsed = at(['NetIncome', 'TotalAssets']) || at(['NetIncome', 'TotalRevenue']);
   // ROCE: operating profit against capital actually tied up in the business.
   // Capital employed must be positive for the ratio to mean anything.
@@ -514,6 +544,9 @@ function ratiosHtml(t, fund, price){
     <div class="rt-foot">Computed in your browser from the reported statements above and the current price, nothing is sent anywhere.
       n/r means the source did not carry the inputs, so the ratio is not shown rather than estimated.
       Colours are broad rules of thumb across ordinary businesses; a capital-heavy company and an asset-light one are not judged on the same numbers.
+      ${(r.roeAveraged || r.roaAveraged)
+        ? 'ROE and ROA divide profit by the <b>average</b> of the opening and closing balance, which is the usual basis and the one most data providers use.'
+        : 'ROE and ROA here divide profit by the <b>closing</b> balance: only one period was reported, so there was no opening balance to average against. Sites that average will differ slightly.'}
       Hover any label for what it measures.</div>
   </div>`;
 }

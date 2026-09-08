@@ -3469,6 +3469,94 @@ group('TA indicators — degenerate input & smoothing');
   }
 }
 
+// ── Composite score: families, not member counts ───────────────────────────
+group('signal engine — family weighting');
+{
+  // The engine is scored by family so that correlated oscillators cannot buy
+  // influence through sheer membership, and so that a family the ADX gate has
+  // muted does not speak with undiminished authority through one survivor.
+  ok('families are declared, not inferred from indicator order',
+     /famOf = \{[\s\S]*?OBV:'volume'/.test(SRC), 'the family map is missing');
+  ok('shares are fixed per family rather than derived from member count',
+     /famShare = \{ trend:40, momentum:30, volume:15, volatility:15 \}/.test(SRC),
+     'family shares changed - update this assertion deliberately');
+  ok('a family votes its own internal consensus first',
+     /weighted \+= sh \* \(fam\[f\]\.bull \/ fam\[f\]\.total\)/.test(SRC), 'family consensus not computed');
+  // The regression this guards: momentum's members get muted in a strong
+  // trend, and the survivors used to inherit the family's whole share.
+  ok('a family that has been mostly muted loses share in proportion',
+     /fam\[f\]\.n \/ Math\.max\(1, fam\[f\]\.present\)/.test(SRC),
+     'survivors would inherit the full family share again');
+  ok('membership is counted before muting, so the ratio means something',
+     /fam\[f\]\.present\+\+;\s*\/\/ counted before muting/.test(SRC), 'present is counted after muting');
+  ok('an absent family is dropped rather than counted as neutral',
+     /if \(!\(fam\[f\]\.total > 0\)\) return;/.test(SRC), 'a missing family would drag the score to 50');
+  ok('the headline reports category agreement, not raw indicator count',
+     /categories bullish/.test(SRC), 'the UI still leads with "N of 16 indicators"');
+}
+
+// ── Annualised return must be geometric ────────────────────────────────────
+group('risk — geometric annualisation');
+{
+  const R = load(slice('const RISK_TRADING_DAYS', '\n// ── Glue: fetch each holding', 'risk-ann'),
+    ['_rkMetrics'], { Math, Array, Number, isFinite, Object });
+  // +10% then -1/11 repeatedly returns exactly to the starting value, so the
+  // honest annualised figure is 0%. Compounding the ARITHMETIC mean of the
+  // same series reports about +214%, because the mean of a varying series
+  // always exceeds its geometric mean.
+  const rets = [];
+  for (let i = 0; i < 252; i++) rets.push(i % 2 === 0 ? 0.10 : -1/11);
+  const m = R._rkMetrics(rets.map((r, i) => ({ d: '2026-01-' + i, r })), null, 6.5);
+  ok('a portfolio that ends where it started is annualised at ~0%',
+     Math.abs(m.annRet) < 0.5, 'got ' + m.annRet);
+  const arithmetic = (Math.pow(1 + rets.reduce((a,b)=>a+b,0)/rets.length, 252) - 1) * 100;
+  ok('and the arithmetic method this replaced would have said something absurd',
+     arithmetic > 20, 'arithmetic gave ' + arithmetic.toFixed(1) + '%');
+  ok('volatility is still reported for that series', m.vol > 0, 'vol = ' + m.vol);
+}
+
+// ── ROE / ROA denominators ─────────────────────────────────────────────────
+group('ratios — average balance denominators');
+{
+  const RT = load(slice('function _rtLatest', '\n// Bands. `hi` means', 'ratios-avg'),
+    ['computeRatios'], { Math, Array, Number, isFinite, Object, String, JSON,
+                         RT_EPS: 1e-9, _finGroup: () => '', _finUnit: () => '' });
+  const two = { periodsAll: ['2026-03-31','2025-03-31'],
+    line: { NetIncome: { '2026-03-31':200, '2025-03-31':150 },
+            StockholdersEquity: { '2026-03-31':1200, '2025-03-31':800 },
+            TotalAssets: { '2026-03-31':2200, '2025-03-31':1800 },
+            TotalRevenue: { '2026-03-31':1000, '2025-03-31':900 } } };
+  const r = RT.computeRatios(two, {}, null);
+  // Profit is a flow over the year; equity is a balance at one instant. A
+  // company that grew equity 800 -> 1200 did not have 1200 available all year.
+  ok('ROE divides by the average of opening and closing equity',
+     Math.abs(r.roe - 20) < 1e-9, 'got ' + r.roe + ', closing-balance basis would give 16.67');
+  ok('ROA likewise', Math.abs(r.roa - 10) < 1e-9, 'got ' + r.roa);
+  eq('and it records that averaging was possible', r.roeAveraged, true);
+
+  const one = { periodsAll: ['2026-03-31'],
+    line: { NetIncome: { '2026-03-31':200 }, StockholdersEquity: { '2026-03-31':1200 },
+            TotalAssets: { '2026-03-31':2200 }, TotalRevenue: { '2026-03-31':1000 } } };
+  const r1 = RT.computeRatios(one, {}, null);
+  ok('a single reported period falls back to the closing balance',
+     Math.abs(r1.roe - (200/1200*100)) < 1e-9, 'got ' + r1.roe);
+  eq('and says so rather than implying it averaged', r1.roeAveraged, false);
+  ok('the panel names whichever basis was used',
+     /average<\/b> of the opening and closing balance/.test(SRC) &&
+     /<b>closing<\/b> balance/.test(SRC), 'the basis is not disclosed to the reader');
+}
+
+// ── Backtest disclosure ────────────────────────────────────────────────────
+group('signals — dividend disclosure');
+{
+  ok('the backtest says it counts price only, not dividends',
+     /not dividends/.test(SRC), 'dividends are not mentioned');
+  ok('and names which way that bias runs',
+     /case for simply holding is a little\s*\n?\s*stronger/.test(SRC.replace(/\s+/g, ' ')) ||
+     /case for simply holding is a little stronger/.test(SRC.replace(/\s+/g, ' ')),
+     'the direction of the bias is not stated');
+}
+
 // ── Simple View must not state something untrue ────────────────────────────
 group('simple view — truthful readouts');
 {
