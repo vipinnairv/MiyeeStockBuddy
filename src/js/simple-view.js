@@ -42,6 +42,32 @@ function _svReadouts(s, price){
     t: `<b>Momentum shift (MACD)</b>, momentum just crossed ${s.macdCrossUp?'upward, an early sign buyers are taking over':'downward, an early sign sellers are taking over'}. Early signals like this fail often on their own; they matter most when the trend agrees.` });
   if(s.stV!=null) out.push({ c: s.stV===1?chip('BUY SIDE','var(--green)'):chip('SELL SIDE','var(--red)'),
     t: `<b>Trend line (Supertrend)</b>, the trailing trend line sits at ${CUR()}${s.stLine} and currently favours the ${s.stV===1?'upside':'downside'}. A close through it is the usual signal to flip.` });
+  // Anchored VWAP answers something no moving average can: what the people who
+  // bought since the low actually paid. Said that way rather than as a level.
+  const avw = n(s.avwapV);
+  if(isFinite(avw) && avw > 0 && price){
+    const gap = (price - avw) / avw * 100;
+    out.push({ c: gap >= 0 ? chip('IN PROFIT','var(--green)') : chip('UNDERWATER','var(--red)'),
+      t: `<b>What buyers have paid (anchored VWAP)</b>, everyone who bought since the recent low has paid about ${CUR()}${avw.toFixed(2)} on average. `
+        + (gap >= 0
+          ? `Price is ${gap.toFixed(1)}% above that, so as a group they are sitting on a gain - which is why this level often holds as support when price falls back to it.`
+          : `Price is ${Math.abs(gap).toFixed(1)}% below it, so as a group they are underwater. People who buy back to breakeven tend to sell there, which is why it often caps a rally.`) });
+  }
+  // Volume profile is the one measure here that looks at price rather than
+  // time: where the stock actually changed hands, not when.
+  const vp = s.volProfile;
+  if(vp && isFinite(vp.poc) && price){
+    const inside = price >= vp.val && price <= vp.vah;
+    out.push({ c: inside ? chip('ACCEPTED','var(--text3)')
+              : price > vp.vah ? chip('ABOVE VALUE','var(--green)') : chip('BELOW VALUE','var(--red)'),
+      t: `<b>Where the shares actually traded (volume profile)</b>, more stock changed hands near ${CUR()}${vp.poc.toFixed(2)} than at any other price, and roughly 70% of all trading happened between ${CUR()}${vp.val.toFixed(2)} and ${CUR()}${vp.vah.toFixed(2)}. `
+        + (inside
+          ? 'Price is inside that band, where buyers and sellers broadly agree, so moves tend to be slow and range-bound.'
+          : price > vp.vah
+            ? 'Price is above that band, in territory where few were willing to trade. Moves there are quicker in both directions, and the band below is the natural place to fall back to.'
+            : 'Price is below that band, where little trading happened. There is little to hold it up here, though the band above is the natural place to rally back to.') });
+  }
+
   // A zero ATR means the stock has not moved at all, so "set your stop wider
   // than this" would be advice to use a stop of zero. Say what is actually
   // happening instead of dressing an absence of trading up as a risk figure.

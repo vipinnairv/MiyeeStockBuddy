@@ -5115,6 +5115,113 @@ function calcOBV(closes, volumes) {
   return obv;
 }
 
+// ── ANCHORED VWAP ───────────────────────────────────────────────────────────
+// Ordinary VWAP resets every session, which makes it useless on a daily chart.
+// Anchored VWAP instead runs from one chosen bar forward, and answers a
+// question no moving average can: what has everyone who bought since that
+// event actually paid on average? Price above it means those buyers are
+// collectively in profit, which is why the line so often acts as support on
+// the way back down - and as resistance when it is approached from below.
+//
+// Volume-weighted, so it is only meaningful with real volume. A feed that
+// omits volume returns null rather than degenerating into an unweighted mean
+// dressed up as VWAP.
+function calcAnchoredVWAP(data, anchorIdx) {
+  const n = Array.isArray(data) ? data.length : 0;
+  const out = new Array(n).fill(null);
+  const a = Math.max(0, Math.floor(anchorIdx));
+  if (!n || !isFinite(a) || a >= n) return out;
+  let pv = 0, vol = 0, sawVolume = false;
+  for (let i = a; i < n; i++) {
+    const r = data[i];
+    const tp = (r.high + r.low + r.close) / 3;
+    const v = +r.volume;
+    if (isFinite(v) && v > 0) { sawVolume = true; pv += tp * v; vol += v; }
+    out[i] = vol > 0 ? pv / vol : null;
+  }
+  return sawVolume ? out : new Array(n).fill(null);
+}
+
+// Where to anchor. The convention is a bar that everyone can see and remembers
+// - the highest high or lowest low of the recent past - because that is the
+// bar whose buyers and sellers are still deciding what to do. Returns the
+// index, or null when there is not enough history to pick one honestly.
+function _avwapAnchor(data, lookback, mode) {
+  const n = Array.isArray(data) ? data.length : 0;
+  const lb = Math.min(n, Math.max(2, Math.floor(lookback || 120)));
+  if (n < 2) return null;
+  const from = n - lb;
+  let idx = from, best = mode === 'high' ? -Infinity : Infinity;
+  for (let i = from; i < n; i++) {
+    const v = mode === 'high' ? data[i].high : data[i].low;
+    if (!isFinite(v)) continue;
+    if (mode === 'high' ? v > best : v < best) { best = v; idx = i; }
+  }
+  return isFinite(best) ? idx : null;
+}
+
+// ── VOLUME PROFILE ──────────────────────────────────────────────────────────
+// Every other indicator here measures volume against TIME. This one measures
+// it against PRICE: how much trading actually happened at each level. That
+// distribution is what turns "support" from a line somebody drew into a price
+// where a lot of stock genuinely changed hands.
+//
+//   POC (point of control) - the single busiest price. The market's own idea
+//                            of fair value over the window.
+//   Value area             - the band around the POC holding ~70% of volume.
+//                            Inside it price is accepted; outside it price
+//                            tends to move quickly, because few want to trade
+//                            there.
+//
+// Each bar's volume is spread evenly across the buckets its high-low range
+// covers. That is an approximation - intraday data would place it exactly -
+// and it is the standard one for daily bars.
+function calcVolumeProfile(data, bins, lookback) {
+  const n = Array.isArray(data) ? data.length : 0;
+  const nb = Math.max(4, Math.floor(bins || 24));
+  const lb = Math.min(n, Math.max(2, Math.floor(lookback || 120)));
+  if (n < 2) return null;
+  const win = data.slice(n - lb);
+  let lo = Infinity, hi = -Infinity, total = 0;
+  for (const r of win) {
+    if (isFinite(r.low))  lo = Math.min(lo, r.low);
+    if (isFinite(r.high)) hi = Math.max(hi, r.high);
+    const v = +r.volume; if (isFinite(v) && v > 0) total += v;
+  }
+  // No volume, or no price range to bin: say so rather than inventing a shape.
+  if (!isFinite(lo) || !isFinite(hi) || !(hi > lo) || !(total > 0)) return null;
+
+  const width = (hi - lo) / nb;
+  const vols = new Array(nb).fill(0);
+  for (const r of win) {
+    const v = +r.volume;
+    if (!isFinite(v) || v <= 0) continue;
+    const a = Math.max(0, Math.min(nb - 1, Math.floor((r.low  - lo) / width)));
+    const b = Math.max(0, Math.min(nb - 1, Math.floor((r.high - lo) / width)));
+    const span = b - a + 1;
+    for (let k = a; k <= b; k++) vols[k] += v / span;
+  }
+
+  let poc = 0;
+  for (let i = 1; i < nb; i++) if (vols[i] > vols[poc]) poc = i;
+
+  // Value area: start at the busiest bucket and keep absorbing whichever
+  // neighbour is busier until 70% of all volume is inside.
+  const target = total * 0.7;
+  let loI = poc, hiI = poc, acc = vols[poc];
+  while (acc < target && (loI > 0 || hiI < nb - 1)) {
+    const below = loI > 0 ? vols[loI - 1] : -1;
+    const above = hiI < nb - 1 ? vols[hiI + 1] : -1;
+    if (above >= below) { hiI++; acc += vols[hiI]; } else { loI--; acc += vols[loI]; }
+  }
+  const priceAt = i => lo + width * (i + 0.5);
+  return {
+    poc: priceAt(poc), vah: lo + width * (hiI + 1), val: lo + width * loI,
+    low: lo, high: hi, total, bars: win.length,
+    rows: vols.map((v, i) => ({ price: priceAt(i), volume: v, pct: v / total * 100 })),
+  };
+}
+
 // Supertrend (ATR-based)
 function calcSupertrend(data, period=10, multiplier=3) {
   const n=data.length; const atr=calcATR(data,period);
@@ -5234,7 +5341,8 @@ function generateSignals(closes, highs, lows, rsi, macd, sma20, sma50, sma200, b
   const atrV    = atr[idx] || (c * 0.018);
 
   // Unpack advanced indicators
-  const { stoch, cci, adxData, psar, obv, supertrend, willR, mfi, emaCross, rsiDiv } = extras;
+  const { stoch, cci, adxData, psar, obv, supertrend, willR, mfi, emaCross, rsiDiv,
+          avwap, volProfile } = extras;
   const stochK = stoch.k[idx] ?? 50, stochD = stoch.d[idx] ?? 50;
   const stochKp = stoch.k[idx-1] ?? stochK, stochDp = stoch.d[idx-1] ?? stochD;
   const cciV   = cci[idx] ?? 0;
@@ -5368,6 +5476,28 @@ function generateSignals(closes, highs, lows, rsi, macd, sma20, sma50, sma200, b
   // 16. OBV trend (weight 8)
   sigs.push({ name:'OBV', w:8, dir: obvV > obvPrev ? 1 : -1 });
 
+  // 17. Anchored VWAP (weight 10). Price above the average paid by everyone
+  // who bought since the anchor low means those holders are collectively up,
+  // which is what makes the level act as support. Only voted when the series
+  // actually exists - a feed without volume yields null and stays silent
+  // rather than guessing.
+  const avwapV = (avwap && avwap[idx] != null && isFinite(avwap[idx])) ? avwap[idx] : null;
+  if (avwapV != null && _px > 0) {
+    const gap = (_px - avwapV) / avwapV * 100;
+    if      (gap >  6) sigs.push({ name:'AVWAP', w:10, dir: 1 });
+    else if (gap >  0) sigs.push({ name:'AVWAP', w:6,  dir: 1 });
+    else if (gap < -6) sigs.push({ name:'AVWAP', w:10, dir:-1 });
+    else               sigs.push({ name:'AVWAP', w:6,  dir:-1 });
+  }
+
+  // 18. Volume profile position (weight 8). Inside the value area the market
+  // is agreeing about price and there is no edge either way, so it abstains.
+  // Outside it, price is somewhere few were willing to trade.
+  if (volProfile && _px > 0) {
+    if      (_px > volProfile.vah) sigs.push({ name:'VP', w:8, dir: 1 });
+    else if (_px < volProfile.val) sigs.push({ name:'VP', w:8, dir:-1 });
+  }
+
   // 17. RSI Divergence bonus (weight 15 when present)
   if (rsiDiv.bullDiv) sigs.push({ name:'RSIDiv', w:15, dir:1 });
   if (rsiDiv.bearDiv) sigs.push({ name:'RSIDiv', w:15, dir:-1 });
@@ -5406,7 +5536,7 @@ function generateSignals(closes, highs, lows, rsi, macd, sma20, sma50, sma200, b
     EMAcross:'trend', PSAR:'trend', ST:'trend', ADX:'trend',
     RSI:'momentum', Stoch:'momentum', CCI:'momentum', MFI:'momentum',
     MACD:'momentum', RSIDiv:'momentum',
-    OBV:'volume',
+    OBV:'volume', AVWAP:'volume', VP:'volume',
     BB:'volatility',
   };
   const famShare = { trend:40, momentum:30, volume:15, volatility:15 };
@@ -5514,6 +5644,7 @@ function generateSignals(closes, highs, lows, rsi, macd, sma20, sma50, sma200, b
     adxV: adxV.toFixed(1), pDIV: pDIV.toFixed(1), mDIV: mDIV.toFixed(1),
     sarV: f2(sarV), sarTrend, stV, stLine: f2(stLine),
     willRV: willRV.toFixed(1), mfiV: mfiV.toFixed(1),
+    avwapV, volProfile,          // for the plain-English readouts
     emaBull, emaCrossUp, emaCrossDown, rsiDiv,
     // The entry ladder is quoted to the reader as "current price", so it must
     // be the canonical price, not the last bar's close. The indicator maths
@@ -8085,8 +8216,16 @@ async function runAnalysis() {
     const mfi        = calcMFI(data, 14);
     const emaCross   = calcEMACross(closes, 9, 21);
     const rsiDiv     = detectRSIDivergence(closes, rsi, 20);
+    // Anchored VWAP from the lowest low of the last ~6 months: the level every
+    // buyer since the bottom has, on average, paid. Volume profile over the
+    // same window gives the prices the market actually traded at.
+    const avwapIdx   = _avwapAnchor(data, 120, 'low');
+    const avwap      = avwapIdx == null ? new Array(data.length).fill(null)
+                                        : calcAnchoredVWAP(data, avwapIdx);
+    const volProfile = calcVolumeProfile(data, 24, 120);
 
-    const extras  = { stoch, cci, adxData, psar, obv, supertrend, willR, mfi, emaCross, rsiDiv };
+    const extras  = { stoch, cci, adxData, psar, obv, supertrend, willR, mfi, emaCross, rsiDiv,
+                      avwap, avwapIdx, volProfile };
     // ── Single source of truth for "current price" ──────────────────────
     // This used to be resolved AFTER the signals and patterns were built, so
     // those components fell back to closes[last] (the last completed daily bar)
@@ -8592,6 +8731,32 @@ function _svReadouts(s, price){
     t: `<b>Momentum shift (MACD)</b>, momentum just crossed ${s.macdCrossUp?'upward, an early sign buyers are taking over':'downward, an early sign sellers are taking over'}. Early signals like this fail often on their own; they matter most when the trend agrees.` });
   if(s.stV!=null) out.push({ c: s.stV===1?chip('BUY SIDE','var(--green)'):chip('SELL SIDE','var(--red)'),
     t: `<b>Trend line (Supertrend)</b>, the trailing trend line sits at ${CUR()}${s.stLine} and currently favours the ${s.stV===1?'upside':'downside'}. A close through it is the usual signal to flip.` });
+  // Anchored VWAP answers something no moving average can: what the people who
+  // bought since the low actually paid. Said that way rather than as a level.
+  const avw = n(s.avwapV);
+  if(isFinite(avw) && avw > 0 && price){
+    const gap = (price - avw) / avw * 100;
+    out.push({ c: gap >= 0 ? chip('IN PROFIT','var(--green)') : chip('UNDERWATER','var(--red)'),
+      t: `<b>What buyers have paid (anchored VWAP)</b>, everyone who bought since the recent low has paid about ${CUR()}${avw.toFixed(2)} on average. `
+        + (gap >= 0
+          ? `Price is ${gap.toFixed(1)}% above that, so as a group they are sitting on a gain - which is why this level often holds as support when price falls back to it.`
+          : `Price is ${Math.abs(gap).toFixed(1)}% below it, so as a group they are underwater. People who buy back to breakeven tend to sell there, which is why it often caps a rally.`) });
+  }
+  // Volume profile is the one measure here that looks at price rather than
+  // time: where the stock actually changed hands, not when.
+  const vp = s.volProfile;
+  if(vp && isFinite(vp.poc) && price){
+    const inside = price >= vp.val && price <= vp.vah;
+    out.push({ c: inside ? chip('ACCEPTED','var(--text3)')
+              : price > vp.vah ? chip('ABOVE VALUE','var(--green)') : chip('BELOW VALUE','var(--red)'),
+      t: `<b>Where the shares actually traded (volume profile)</b>, more stock changed hands near ${CUR()}${vp.poc.toFixed(2)} than at any other price, and roughly 70% of all trading happened between ${CUR()}${vp.val.toFixed(2)} and ${CUR()}${vp.vah.toFixed(2)}. `
+        + (inside
+          ? 'Price is inside that band, where buyers and sellers broadly agree, so moves tend to be slow and range-bound.'
+          : price > vp.vah
+            ? 'Price is above that band, in territory where few were willing to trade. Moves there are quicker in both directions, and the band below is the natural place to fall back to.'
+            : 'Price is below that band, where little trading happened. There is little to hold it up here, though the band above is the natural place to rally back to.') });
+  }
+
   // A zero ATR means the stock has not moved at all, so "set your stop wider
   // than this" would be advice to use a stop of zero. Say what is actually
   // happening instead of dressing an absence of trading up as a risk figure.

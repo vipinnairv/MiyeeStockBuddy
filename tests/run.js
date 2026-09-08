@@ -3469,6 +3469,94 @@ group('TA indicators — degenerate input & smoothing');
   }
 }
 
+// ── Anchored VWAP & Volume Profile ─────────────────────────────────────────
+group('anchored VWAP & volume profile');
+{
+  const taSrc = slice('function calcSMA', '\n// CANDLESTICK PATTERN DETECTOR', 'vwap-vp');
+  const V = load(taSrc, ['calcAnchoredVWAP','_avwapAnchor','calcVolumeProfile'],
+    { Math, Array, Number, isFinite, isNaN, String, Object, JSON, parseFloat, Infinity, console });
+
+  // Flat OHLC so the typical price equals the close and the arithmetic is
+  // checkable by hand. An UNWEIGHTED mean of bars 0-1 would be 15; the
+  // volume-weighted answer is 17.5, because the second bar traded 3x the size.
+  const bars = [
+    { high:10, low:10, close:10, volume:100 },
+    { high:20, low:20, close:20, volume:300 },
+    { high:30, low:30, close:30, volume:100 },
+  ];
+  const v = V.calcAnchoredVWAP(bars, 0);
+  eq('the anchor bar equals its own typical price', v[0], 10);
+  ok('it is volume-weighted, not a plain average', Math.abs(v[1] - 17.5) < 1e-12,
+     'got ' + v[1] + ', an unweighted mean would be 15');
+  ok('and weights the whole run correctly', Math.abs(v[2] - 20) < 1e-12, 'got ' + v[2]);
+  eq('nothing is reported before the anchor', V.calcAnchoredVWAP(bars, 1)[0], null);
+  ok('a feed with no volume yields null rather than an unweighted mean wearing the VWAP name',
+     V.calcAnchoredVWAP(bars.map(b => ({ ...b, volume: 0 })), 0).every(x => x === null),
+     'a value leaked out');
+
+  {
+    const wave = [];
+    for (let i = 0; i < 50; i++) { const p = 100 + Math.sin(i/4) * 20;
+      wave.push({ high:p+1, low:p-1, close:p, volume:1000 }); }
+    const loI = V._avwapAnchor(wave, 50, 'low'), hiI = V._avwapAnchor(wave, 50, 'high');
+    ok('the low anchor is the actual lowest low',
+       wave[loI].low === Math.min.apply(null, wave.map(b => b.low)), 'idx ' + loI);
+    ok('the high anchor is the actual highest high',
+       wave[hiI].high === Math.max.apply(null, wave.map(b => b.high)), 'idx ' + hiI);
+    eq('no data means no anchor, rather than index 0', V._avwapAnchor([], 50, 'low'), null);
+  }
+
+  // Volume profile measures volume against PRICE, not time.
+  {
+    const vp = [];
+    for (let i = 0; i < 60; i++) {
+      const heavy = i % 3 === 0;
+      const p = heavy ? 100 : (i % 2 ? 130 : 70);
+      vp.push({ high:p+1, low:p-1, close:p, volume: heavy ? 10000 : 300 });
+    }
+    const prof = V.calcVolumeProfile(vp, 24, 60);
+    ok('the point of control lands on the busiest price', Math.abs(prof.poc - 100) < 6,
+       'poc = ' + prof.poc);
+    ok('the value area brackets the point of control', prof.val < prof.poc && prof.poc < prof.vah,
+       `${prof.val} < ${prof.poc} < ${prof.vah}`);
+    ok('no volume is created or lost while binning',
+       Math.abs(prof.rows.reduce((s, r) => s + r.volume, 0) - prof.total) < 1e-6,
+       'bins do not sum to the total');
+    eq('a feed with no volume yields null, not a fabricated profile',
+       V.calcVolumeProfile(vp.map(b => ({ ...b, volume: 0 })), 24, 60), null);
+    eq('a flat series has no price range to bin, so it yields null rather than dividing by zero',
+       V.calcVolumeProfile(Array.from({length:30}, () => ({ high:5, low:5, close:5, volume:100 })), 24, 30),
+       null);
+  }
+  {
+    // On an ordinary distribution the value area really should hold ~70%.
+    const rnd = (s => () => ((s = s * 16807 % 2147483647) / 2147483647))(11);
+    const d = []; let p = 100;
+    for (let i = 0; i < 250; i++) { p *= 1 + (rnd() - 0.5) * 0.03;
+      d.push({ high:p*1.01, low:p*0.99, close:p, volume:5000 + rnd()*5000 }); }
+    const prof = V.calcVolumeProfile(d, 24, 250);
+    const inVA = prof.rows.filter(r => r.price >= prof.val && r.price <= prof.vah)
+                          .reduce((s, r) => s + r.volume, 0) / prof.total * 100;
+    ok('the value area holds about 70% of the volume traded', inVA >= 68 && inVA <= 80,
+       inVA.toFixed(1) + '%');
+    ok('and is narrower than the full range it was drawn from',
+       (prof.vah - prof.val) < (prof.high - prof.low), 'the value area spans everything');
+  }
+
+  // Both join the volume family, which until now was OBV on its own.
+  ok('anchored VWAP and volume profile are scored as volume, not as trend',
+     /AVWAP:'volume', VP:'volume'/.test(SRC), 'they are in the wrong family');
+  ok('volume profile abstains inside the value area, where there is no edge either way',
+     /if\s*\(\s*_px > volProfile\.vah\)[\s\S]{0,140}?_px < volProfile\.val/.test(SRC),
+     'it votes even when price sits in the accepted band');
+  ok('anchored VWAP stays silent when the series could not be computed',
+     /avwapV != null && _px > 0/.test(SRC), 'it would vote on a null VWAP');
+  ok('the plain view explains VWAP as what buyers paid, not as a line on a chart',
+     /everyone who bought since the recent low has paid/.test(SRC), 'jargon-only VWAP readout');
+  ok('and explains the value area as where shares actually changed hands',
+     /more stock changed hands near/.test(SRC), 'jargon-only volume-profile readout');
+}
+
 // ── Composite score: families, not member counts ───────────────────────────
 group('signal engine — family weighting');
 {
