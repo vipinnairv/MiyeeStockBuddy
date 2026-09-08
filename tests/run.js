@@ -3358,6 +3358,152 @@ group('auth gate');
      'modal falls back to document.body, which has none of the --white/--bd/--T1 theme variables');
 }
 // ── Signal scanner + backtest ──────────────────────────────────────────────
+// ── TA indicator correctness (QA audit remediation) ────────────────────────
+// Each assertion here corresponds to a defect found by executing the shipped
+// function against degenerate input. A bounded oscillator must return the
+// NEUTRAL midpoint of its own scale when the input carries no information -
+// never an extreme, which reads to a user as a confident call.
+group('TA indicators — degenerate input & smoothing');
+{
+  const taSrc = slice('function calcSMA', '\n// CANDLESTICK PATTERN DETECTOR', 'ta-audit');
+  const T = load(taSrc,
+    ['calcSMA','calcEMA','calcRSI','calcMACD','calcATR','calcADX','calcMFI',
+     'calcStochastic','calcWilliamsR'],
+    { Math, Array, Number, isFinite, isNaN, String, Object, JSON, parseFloat, Infinity, console });
+
+  const flatBars = n => Array.from({ length: n },
+    () => ({ high: 100, low: 100, close: 100, volume: 1000 }));
+
+  // ── F-02: RSI on a series that never moved ──
+  eq('RSI is neutral on a flat series, not maximally overbought',
+     T.calcRSI(Array(60).fill(100), 14)[59], 50);
+  // ── F-03: history shorter than the period must be refused, not overrun ──
+  eq('RSI does not write past the end of the array it was given',
+     T.calcRSI([1,2,3,4,5,6,7,8,9,10], 14).length, 10);
+  ok('and reports nothing rather than NaN',
+     T.calcRSI([1,2,3,4,5,6,7,8,9,10], 14).every(v => v === null), 'a value leaked out');
+
+  // ── F-01: MFI must exclude unchanged periods from both flows ──
+  eq('MFI is neutral on a flat series, not maximally oversold',
+     T.calcMFI(flatBars(40), 14)[39], 50);
+  eq('MFI is withheld when the feed carries no volume at all',
+     T.calcMFI(Array.from({length:40},()=>({high:101,low:99,close:100})), 14)[39], null);
+
+  // ── F-04: the EMA recurrence must not be poisoned by one bad tick ──
+  {
+    const e = T.calcEMA([10,11,12,13,14,NaN,16,17,18], 5);
+    ok('a NaN after the seed window is carried over, not propagated forever',
+       e[8] != null && !Number.isNaN(e[8]), 'value = ' + e[8]);
+    eq('the warm-up is null rather than a number built from too few bars', e[3], null);
+    ok('and the first real value lands at index period-1', e[4] != null, 'e[4] = ' + e[4]);
+  }
+
+  // ── F-07: an invalid period must not yield a plottable wrong number ──
+  ok('SMA with period 0 yields null, not NaN',
+     T.calcSMA([1,2,3,4,5], 0).every(v => v === null), 'a value leaked out');
+  ok('SMA with a negative period yields null, not 0',
+     T.calcSMA([1,2,3,4,5], -3).every(v => v === null), 'a value leaked out');
+
+  // ── F-05 / F-06: smoothing must match the industry standard, or the app
+  //    will not reconcile against TradingView, Kite or Screener ──
+  {
+    const rnd = (s => () => ((s = s * 16807 % 2147483647) / 2147483647))(42);
+    const d = []; let px = 100;
+    for (let i = 0; i < 120; i++) {
+      px *= 1 + (rnd() - 0.5) * 0.06;
+      d.push({ high: px * (1 + rnd() * 0.03), low: px * (1 - rnd() * 0.03),
+               close: px, volume: 1000 + rnd() * 5000 });
+    }
+    const tr = d.map((r, i) => i === 0 ? r.high - r.low
+      : Math.max(r.high - r.low, Math.abs(r.high - d[i-1].close), Math.abs(r.low - d[i-1].close)));
+    let w = tr.slice(1, 15).reduce((a, b) => a + b, 0) / 14;
+    for (let i = 15; i < tr.length; i++) w = (w * 13 + tr[i]) / 14;
+    const app = T.calcATR(d, 14)[119];
+    ok('ATR matches Wilder\'s RMA, not a rolling simple mean',
+       Math.abs(app - w) / w < 1e-9, `app=${app} wilder=${w}`);
+
+    const a = T.calcADX(d, 14);
+    const dx = [];
+    for (let i = 0; i < d.length; i++) {
+      const p = a.pDI[i], m = a.mDI[i];
+      dx[i] = (p != null && m != null && (p + m) > 0) ? Math.abs(p - m) / (p + m) * 100 : null;
+    }
+    let wl = null, cnt = 0, acc = 0;
+    for (let i = 0; i < dx.length; i++) {
+      if (dx[i] == null) continue;
+      if (cnt < 14) { acc += dx[i]; if (++cnt === 14) wl = acc / 14; }
+      else wl = (wl * 13 + dx[i]) / 14;
+    }
+    ok('ADX is Wilder-smoothed DX, not a rolling simple mean of it',
+       Math.abs(a.adx[119] - wl) / wl < 1e-9, `app=${a.adx[119]} wilder=${wl}`);
+  }
+
+  // ── F-09: MACD must not read a warm-up null as a MACD of exactly zero ──
+  ok('MACD is all-null on a series too short to compute it',
+     T.calcMACD([1,2,3,4,5]).macdLine.every(v => v === null), 'a zero leaked out');
+  {
+    const long = Array.from({ length: 120 }, (_, i) => 100 + Math.sin(i / 5) * 10);
+    const m = T.calcMACD(long, 12, 26, 9);
+    ok('MACD begins exactly where the slow EMA finishes warming up',
+       m.macdLine[24] === null && m.macdLine[25] != null, 'warm-up boundary moved');
+  }
+
+  // ── F-11: Williams %R is Stochastic %K shifted by a constant ──
+  {
+    const rnd = (s => () => ((s = s * 16807 % 2147483647) / 2147483647))(7);
+    const c = [], h = [], l = []; let px = 100;
+    for (let i = 0; i < 200; i++) {
+      px *= 1 + (rnd() - 0.5) * 0.05;
+      c.push(px); h.push(px * 1.02); l.push(px * 0.98);
+    }
+    const k = T.calcStochastic(h, l, c, 14, 3).k, r = T.calcWilliamsR(h, l, c, 14);
+    let maxDiff = 0;
+    for (let i = 0; i < c.length; i++)
+      if (k[i] != null && r[i] != null) maxDiff = Math.max(maxDiff, Math.abs((k[i] - 100) - r[i]));
+    ok('Williams %R is provably identical to Stochastic %K minus 100',
+       maxDiff < 1e-9, 'max deviation ' + maxDiff);
+    ok('so it must not also be scored in the composite - that counts one signal twice',
+       !/name:'WillR'/.test(SRC), 'WillR is being pushed into the score again');
+    ok('though the indicator itself is still computed for display',
+       /calcWilliamsR/.test(SRC), 'the indicator was removed entirely');
+  }
+}
+
+// ── Simple View must not state something untrue ────────────────────────────
+group('simple view — truthful readouts');
+{
+  const svSrc = slice('function _svReadouts', '\nfunction renderSimpleView', 'sv-audit');
+  const SV = load(svSrc, ['_svReadouts'],
+    { Math, Array, Number, isFinite, parseFloat, CUR: () => '₹' });
+  const textOf = rows => rows.map(r => r.t.replace(/<[^>]+>/g, '')).join(' | ');
+  const chipsOf = rows => rows.map(r => r.c.txt).join(',');
+
+  // F-12 / F-13: price sitting exactly on both averages.
+  const flat = SV._svReadouts({ rsiV: '50.0', adxV: null, sma50v: 250, sma200v: 250,
+    macdCrossUp: false, macdCrossDown: false, stV: null, atrV: '0.00' }, 250);
+  const flatTxt = textOf(flat);
+  ok('price equal to an average is described as "exactly at", never as "below"',
+     /exactly at its 50-day/.test(flatTxt) && !/below its 50-day/.test(flatTxt), flatTxt);
+  ok('and the sentence no longer contradicts itself',
+     !(/below/.test(flatTxt) && /They disagree/.test(flatTxt)), flatTxt);
+  ok('a stock that has not moved says so, rather than advising a stop of zero',
+     /has not moved/.test(flatTxt) && !/Set stops wider/.test(flatTxt), flatTxt);
+  ok('and the reader is told the other readings are unreliable for it',
+     /unreliable/.test(flatTxt), flatTxt);
+
+  // A genuine downtrend must still read as one.
+  const weak = SV._svReadouts({ rsiV: '24.0', adxV: '31.0', sma50v: 260, sma200v: 280,
+    macdCrossUp: false, macdCrossDown: true, stV: -1, stLine: '255.00', atrV: '6.20' }, 250);
+  const weakTxt = textOf(weak);
+  ok('a real downtrend still reads as both averages below',
+     /below its 50-day average and below its 200-day average/.test(weakTxt), weakTxt);
+  ok('and still says plainly that it is a downtrend',
+     /this is a downtrend/.test(weakTxt), weakTxt);
+  ok('a moving stock still gets its ATR stop guidance',
+     /Set stops wider/.test(weakTxt), weakTxt);
+  ok('an oversold reading is still called cold', /COLD/.test(chipsOf(weak)), chipsOf(weak));
+}
+
 group('signal scanner');
 {
   const sgSrc = slice('// ══════════ SIGNAL SCANNER + BACKTEST', '\n// ── Rendering ──', 'signals');
@@ -3564,6 +3710,27 @@ group('signal scanner');
 }
 
 // ── Build integrity ────────────────────────────────────────────────────────
+// ── The shipped file must actually parse ───────────────────────────────────
+// This group exists because a real syntax error - a dangling `else` left
+// behind when an if/else chain was edited - passed both `node build.js` and
+// the entire suite, because nothing here had ever parsed the page as a whole.
+// The build concatenates text; it does not compile it. A browser would have
+// failed to run the app at all.
+group('shipped page parses');
+{
+  const re = /<script(?![^>]*type=["']module["'])[^>]*>([\s\S]*?)<\/script>/g;
+  let m, blocks = 0, errs = [];
+  while ((m = re.exec(SRC))) {
+    const body = m[1];
+    if (!body.trim()) continue;
+    blocks++;
+    try { new Function(body); }
+    catch (e) { errs.push(`block ${blocks}: ${e.message}`); }
+  }
+  ok('index.html contains classic script blocks to check', blocks > 0, 'found none');
+  eq('every classic <script> block in the shipped page parses', errs.join(' | '), '');
+}
+
 group('build — index.html matches src/');
 {
   const { execFileSync } = require('child_process');
