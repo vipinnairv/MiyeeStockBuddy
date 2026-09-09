@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.js",
     "check": "node build.js --check",
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "stocks:refresh": "node tools/refresh-stocks.js"
   },
   "devDependencies": {
     "jsdom": "^24.0.0"

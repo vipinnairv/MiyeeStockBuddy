@@ -4260,6 +4260,85 @@ group('contact links reach somebody');
   eq('the superseded address is gone', (SRC.match(/audit\.vipin@gmail\.com/g) || []).length, 0);
 }
 
+
+// ── The Indian company list, now a file of its own ─────────────────────────
+group('india stock list — data file');
+{
+  const fs2 = require('fs'), path2 = require('path');
+  const root = path2.join(__dirname, '..');
+  const srcFile = path2.join(root, 'src', 'data', 'india-stocks.json');
+  const outFile = path2.join(root, 'india-stocks.json');
+
+  ok('the source list exists', fs2.existsSync(srcFile), 'src/data/india-stocks.json missing');
+  // It has to sit beside index.html or the browser cannot fetch it.
+  ok('it is copied next to index.html', fs2.existsSync(outFile), 'india-stocks.json missing at the root');
+  eq('the copy matches the source',
+     fs2.readFileSync(outFile, 'utf8') === fs2.readFileSync(srcFile, 'utf8'), true);
+
+  const rows = JSON.parse(fs2.readFileSync(srcFile, 'utf8'));
+  ok('it holds the full list', rows.length > 2000, `only ${rows.length} rows`);
+  ok('every row is [name, nse, bse, bseCode, isin]',
+     rows.every(r => Array.isArray(r) && r.length === 5), 'row shape varies');
+  ok('every row has a name and an NSE symbol',
+     rows.every(r => r[0] && r[1]), 'blank name or symbol');
+  ok('BSE codes are numbers or null',
+     rows.every(r => r[3] === null || typeof r[3] === 'number'), 'bad BSE code type');
+
+  // Seven rows were duplicated: the 2024 listings were appended without
+  // removing the alphabetical entries already there.
+  const syms = rows.map(r => r[1]);
+  eq('no company is listed twice', syms.length, new Set(syms).size);
+  const isins = rows.map(r => r[4]).filter(Boolean);
+  eq('no ISIN is shared by two companies', isins.length, new Set(isins).size);
+
+  // One row per line, so a refresh produces a readable diff rather than one
+  // 146 KB line.
+  const text = fs2.readFileSync(srcFile, 'utf8');
+  ok('the file is one company per line', text.split('\n').length > 2000, 'written as a single line');
+
+  // The literal is gone from the page; only the loader remains.
+  ok('the page no longer embeds the list', !/const STOCK_DB = \[\[/.test(SRC), 'still inlined');
+  ok('the page declares the loader', /function loadStockDb\(\)/.test(SRC), 'no loader');
+  ok('a failed load explains itself rather than showing nothing',
+     /cannot be read when this page is opened directly from a file/.test(SRC), 'no explanation');
+}
+
+group('india stock list — refresh tool');
+{
+  const fs2 = require('fs'), path2 = require('path');
+  const tool = path2.join(__dirname, '..', 'tools', 'refresh-stocks.js');
+  ok('the refresh tool exists', fs2.existsSync(tool), 'tools/refresh-stocks.js missing');
+  const src = fs2.readFileSync(tool, 'utf8');
+  const pkg = JSON.parse(fs2.readFileSync(path2.join(__dirname, '..', 'package.json'), 'utf8'));
+  eq('it is wired to one command', (pkg.scripts || {})['stocks:refresh'], 'node tools/refresh-stocks.js');
+
+  // NSE's file has no BSE code and BSE's has no NSE symbol, so a replace would
+  // discard one exchange's identifier for most of the list.
+  ok('rows are merged on ISIN, not replaced', /byIsin/.test(src), 'no ISIN merge');
+  ok('companies missing from a download are kept, not deleted',
+     /kept, never deleted here|gone\.length/.test(src), 'silently deletes');
+  ok('only the EQ series is taken', /!== 'EQ'\) continue/.test(src), 'takes non-equity series');
+  ok('it can read files already downloaded', /--nse|arg\('nse'\)/.test(src), 'download only');
+  ok('a blocked BSE download does not abort the refresh',
+     /Existing BSE codes are kept/.test(src), 'BSE failure is fatal');
+
+  // A company name containing a comma must not shift every later column.
+  const { execFileSync } = require('child_process');
+  const csv = 'SYMBOL,NAME OF COMPANY, SERIES, DATE OF LISTING, PAID UP VALUE, MARKET LOT, ISIN NUMBER, FACE VALUE\n'
+            + 'AAA,"Comma, Inc Ltd",EQ,01-JAN-2020,10,1,INE111Z01011,10\n'
+            + 'BBB,Not Equity Ltd,BE,01-JAN-2020,10,1,INE222Z01022,10\n';
+  const tmp = path2.join(require('os').tmpdir(), 'nse-test-' + process.pid + '.csv');
+  fs2.writeFileSync(tmp, csv);
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [tool, '--nse', tmp, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' });
+  } catch (e) { out = String(e.stdout || '') + String(e.stderr || ''); }
+  fs2.unlinkSync(tmp);
+  ok('a quoted company name parses as one field', /1 added/.test(out), out.slice(0, 200));
+  ok('the non-equity row is skipped', /NSE: 1 equity listings/.test(out), out.slice(0, 200));
+  ok('a dry run writes nothing', /nothing written/.test(out), out.slice(0, 200));
+}
+
 group('shipped page parses');
 {
   const re = /<script(?![^>]*type=["']module["'])[^>]*>([\s\S]*?)<\/script>/g;

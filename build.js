@@ -48,11 +48,35 @@ function build() {
   return out;
 }
 
+// Data files are copied beside index.html rather than inlined: the company list
+// is fetched at runtime, so it has to be a real file the browser can request.
+// Both must ship together, which is why --check verifies the copy too.
+const DATA = [['src/data/india-stocks.json', 'india-stocks.json']];
+function dataPairs() {
+  return DATA.map(([from, to]) => ({
+    from: path.join(ROOT, from), to: path.join(ROOT, to), rel: to,
+    src: fs.existsSync(path.join(ROOT, from)) ? fs.readFileSync(path.join(ROOT, from), 'utf8') : null,
+    cur: fs.existsSync(path.join(ROOT, to)) ? fs.readFileSync(path.join(ROOT, to), 'utf8') : null,
+  }));
+}
+
 const built = build();
 const check = process.argv.includes('--check');
 const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : null;
+const pairs = dataPairs();
+const missingData = pairs.filter(p => p.src === null);
+if (missingData.length) {
+  console.error('Missing data file(s):\n  ' + missingData.map(p => p.rel).join('\n  '));
+  process.exit(1);
+}
+const staleData = pairs.filter(p => p.cur !== p.src);
 
 if (check) {
+  if (staleData.length) {
+    console.error('build: data file(s) out of sync with src/. Run `node build.js`.\n  '
+      + staleData.map(p => p.rel).join('\n  '));
+    process.exit(1);
+  }
   if (current === built) { console.log('build: index.html is in sync with src/'); process.exit(0); }
   console.error('build: index.html does NOT match src/. Run `node build.js`.');
   if (current) {
@@ -68,4 +92,6 @@ if (check) {
 }
 
 fs.writeFileSync(OUT, built);
+staleData.forEach(p => fs.writeFileSync(p.to, p.src));
 console.log(current === built ? 'build: index.html unchanged (byte-identical)' : 'build: index.html written');
+if (staleData.length) console.log('build: data written -> ' + staleData.map(p => p.rel).join(', '));
