@@ -3936,6 +3936,9 @@ group('learn academy — content integrity');
     .filter(b => b.rows.some(r => r.length !== b.head.length)).length;
   eq('every table row matches its header width', ragged, 0);
 
+  // The contents lede once said "Five parts" above a table of six.
+  ok('the contents lede counts the parts correctly',
+     all.indexOf('Six parts,') >= 0 && all.indexOf('Five parts,') < 0, 'part count is wrong');
   const parts = LEARN_BLOCKS.filter(b => b.k === 'h1').map(b => b.t);
   eq('all six parts plus the contents are present', parts.length, 7);
   ok('parts are numbered in order', parts.slice(1).every((t, i) => t.indexOf(`Part ${i + 1}.`) === 0),
@@ -4007,7 +4010,7 @@ group('learn academy — rendering');
     eq('the opening note keeps its own untitled section',
        body.querySelectorAll('.ln-part').length, 8);
     ok('and it is the first thing the reader sees',
-       body.querySelector('.ln-part').textContent.indexOf('No prior knowledge is needed') >= 0,
+       body.querySelector('.ln-part').textContent.indexOf('assumes no background in finance') >= 0,
        body.querySelector('.ln-part').textContent.slice(0, 60));
     ok('the contents rail is populated', toc.querySelectorAll('a').length > 25,
        `only ${toc.querySelectorAll('a').length} links`);
@@ -4070,6 +4073,72 @@ group('learn academy — rendering');
        [...body.querySelectorAll('.ln-grp')].filter(g => g.style.display !== 'none').length, n);
     eq('and empties the search box', doc.getElementById('learn-search').value, '');
   }
+}
+
+
+// ── Learn Academy progress tracking ────────────────────────────────────────
+group('learn academy — progress tracking');
+{
+  const src = slice('const LP_KEY =', '\n</script>', 'learn-progress');
+  const store = {};
+  const api = load(src.replace(/^const /gm, 'var ').replace(/^let /gm, 'var '),
+    ['LEARN_QUIZ','LP_PASS','_lpLoad','_lpSave','_lpBlank','_lpStreak'],
+    { localStorage: {
+        getItem: k => (k in store ? store[k] : null),
+        setItem: (k, v) => { store[k] = String(v); },
+        removeItem: k => { delete store[k]; },
+      },
+      document: { querySelectorAll: () => [], querySelector: () => null, getElementById: () => null },
+      window: {} });
+
+  // Every quiz must be answerable and correctly keyed, or a reader is marked
+  // wrong for an answer the guide taught them.
+  const parts = Object.keys(LEARN_QUIZ_KEYS(api));
+  function LEARN_QUIZ_KEYS(a) { return a.LEARN_QUIZ; }
+  eq('one quick check per part', parts.join(','), '1,2,3,4,5,6');
+  const qs = parts.flatMap(k => api.LEARN_QUIZ[k]);
+  eq('three questions in each', qs.length, parts.length * 3);
+  ok('every question has a correct answer inside its option list',
+     qs.every(q => Number.isInteger(q.c) && q.c >= 0 && q.c < q.a.length), 'index out of range');
+  ok('every question explains itself', qs.every(q => q.why && q.why.length > 40), 'missing explanation');
+  ok('no question offers duplicate options',
+     qs.every(q => new Set(q.a).size === q.a.length), 'duplicate option');
+  ok('the pass mark is reachable', api.LP_PASS > 0 && api.LP_PASS <= 3, 'bad pass mark');
+
+  // The quizzes teach the same numbers the engine computes.
+  const quizText = JSON.stringify(api.LEARN_QUIZ);
+  ok('the ADX question carries the hold rule', /below 20 the market is choppy/i.test(quizText), 'ADX rule missing');
+  ok('the ATR question uses the 1.5 to 3 band', /1\.5 to 3 times ATR/.test(quizText), 'ATR band missing');
+  ok('the risk question uses the 1 to 1.5 floor', /1 to 1\.5/.test(quizText), 'R:R floor missing');
+
+  // Storage has to survive whatever it finds. A reader whose record is corrupt
+  // should lose their progress, never the guide.
+  const blank = api._lpBlank();
+  eq('a missing record reads as blank', JSON.stringify(api._lpLoad()), JSON.stringify(blank));
+  store['miyeeLearnProgress_v1'] = '{not json';
+  eq('a corrupt record reads as blank', JSON.stringify(api._lpLoad()), JSON.stringify(blank));
+  store['miyeeLearnProgress_v1'] = 'null';
+  eq('a null record reads as blank', JSON.stringify(api._lpLoad()), JSON.stringify(blank));
+  store['miyeeLearnProgress_v1'] = '{"done":"nope","quiz":5,"days":"x","last":7}';
+  const salvaged = api._lpLoad();
+  eq('wrong-typed fields are replaced, not trusted',
+     [typeof salvaged.done, typeof salvaged.quiz, Array.isArray(salvaged.days), String(salvaged.last)].join(','),
+     'object,object,true,null');
+  delete store['miyeeLearnProgress_v1'];
+
+  const p = api._lpBlank();
+  p.done['a'] = 1;
+  ok('a record round-trips', api._lpSave(p) && api._lpLoad().done.a === 1, 'did not persist');
+
+  // Streaks. A run that ended before yesterday is over, not still running.
+  const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  eq('no days is no streak', api._lpStreak([]), 0);
+  eq('today alone is a streak of one', api._lpStreak([day(0)]), 1);
+  eq('yesterday still counts', api._lpStreak([day(1)]), 1);
+  eq('consecutive days accumulate', api._lpStreak([day(0), day(1), day(2)]), 3);
+  eq('a gap ends the streak', api._lpStreak([day(0), day(1), day(3), day(4)]), 2);
+  eq('a run that ended days ago is not still running', api._lpStreak([day(4), day(5), day(6)]), 0);
+  eq('order does not matter', api._lpStreak([day(2), day(0), day(1)]), 3);
 }
 
 group('shipped page parses');

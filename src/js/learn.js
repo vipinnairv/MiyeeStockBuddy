@@ -13,9 +13,9 @@
 // Everything is escaped at render time, so no string here can inject markup.
 
 const LEARN_BLOCKS = [
-  {"k": "box", "kind": "note", "label": "Read this first", "lines": [[{"t": "No prior knowledge is needed. Every technical term is explained the moment it appears, with an everyday comparison to make it stick."}], [{"t": "Nothing here is investment advice. It is education. No indicator, pattern or ratio in this guide predicts the future. They describe what has already happened, and they help you ask better questions before you risk your own money."}]]},
+  {"k": "box", "kind": "note", "label": "About this guide", "lines": [[{"t": "The material assumes no background in finance. Every term is defined where it first appears, and each measure is introduced alongside an everyday comparison. The thresholds quoted throughout are the ones this application computes, so the guide and the reports agree."}], [{"t": "Nothing here is investment advice. It is education. No indicator, pattern or ratio in this guide predicts the future. They describe what has already happened, and they help you ask better questions before you risk your own money."}]]},
   {"k": "h1", "t": "Contents"},
-  {"k": "p", "r": [{"t": "Five parts, in the order they build on each other. Part 1 explains why prices move at all. Part 2 is about the business behind the share. Part 3 and Part 4 are about reading the chart. Part 5 covers everything beyond ordinary shares."}]},
+  {"k": "p", "r": [{"t": "Six parts, in the order they build on each other. Parts 1 and 2 cover the market and the businesses within it. Parts 3 and 4 cover reading a chart and the indicators this application reports. Part 5 covers instruments beyond ordinary shares, and Part 6 covers the risk rules that govern all of them."}]},
   {"k": "table", "head": [[{"t": "Part", "b": 1}], [{"t": "What it covers", "b": 1}], [{"t": "Why it matters", "b": 1}]], "rows": [[[{"t": "1. Market Mechanics"}], [{"t": "Supply, demand, and the macro forces (inflation, RBI rates, crude oil, global cues)"}], [{"t": "Explains the tide that lifts or sinks every boat"}]], [[{"t": "2. Fundamental Analysis"}], [{"t": "Reading the health of the business behind the share"}], [{"t": "Tells you WHAT is worth owning"}]], [[{"t": "3. Technical Analysis"}], [{"t": "Candlesticks, chart patterns, breakouts"}], [{"t": "Tells you WHEN the crowd is turning"}]], [[{"t": "4. Indicator Guide"}], [{"t": "Every indicator used in the app reports, explained plainly"}], [{"t": "Turns the numbers on your screen into meaning"}]], [[{"t": "5. Multi Asset"}], [{"t": "Futures, options, commodities, currency, crypto, global indices"}], [{"t": "Shows what else exists, and what it costs you"}]], [[{"t": "6. Before You Trade"}], [{"t": "Position sizing, stop losses, risk and reward"}], [{"t": "The part that decides whether you survive"}]]]},
   {"k": "h1", "t": "Part 1. Market Mechanics and Macroeconomics"},
   {"k": "h2", "t": "1.1 Why Prices Move At All"},
@@ -582,7 +582,10 @@ function renderLearn(){
         : b.k === 'box' ? (b.label || '') + ' ' + b.lines.map(_lnText).join(' ')
         : b.k === 'fig' ? (b.cap || '')
         : b.t || _lnText(b.r)).join(' ')).toLowerCase();
-      return '<div class="ln-grp" data-hay="' + _lnEsc(hay) + '">' + head + inner2 + '</div>';
+      // data-gid is what progress tracking keys on. Untitled groups (the
+      // opening note) carry none and are not counted as sections.
+      return '<div class="ln-grp"' + (g.id ? ' data-gid="' + g.id + '"' : '')
+        + ' data-hay="' + _lnEsc(hay) + '">' + head + inner2 + '</div>';
     }).join('');
     secs.push('<section class="ln-part" data-part="' + pi + '">'
       + (part.title ? '<h2 class="ln-h1" id="' + part.id + '">' + _lnEsc(part.title) + '</h2>' : '')
@@ -600,6 +603,9 @@ function renderLearn(){
   const rail = document.getElementById('learn-rail');
   if (rail) rail.open = !(typeof window !== 'undefined' && window.innerWidth && window.innerWidth <= 940);
   _lnObserve();
+  // Progress tracking decorates the rendered guide rather than being woven
+  // into it, so this file stays a renderer of content.
+  if (typeof learnProgressInit === 'function') learnProgressInit();
 }
 
 // Highlight the contents entry for whatever is currently on screen.
