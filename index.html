@@ -1401,10 +1401,10 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
 @media(max-width:540px){
   #app-switcher { padding:0 8px; height:40px; }
   .as-brand-text { display:none; }
-  #btn-analyser,#btn-portfolio { padding:5px 8px !important; font-size:11px !important; }
+  #btn-analyser,#btn-portfolio,#btn-learn { padding:5px 8px !important; font-size:11px !important; }
 }
 @media(max-width:380px){
-  #btn-analyser span,#btn-portfolio span { display:none; }
+  #btn-analyser span,#btn-portfolio span,#btn-learn span { display:none; }
 }
 /* Live Lookup fetch row - stack so the Fetch button is never squeezed off-screen */
 @media(max-width:640px){
@@ -1423,6 +1423,131 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   .disc-title { font-size:26px; }
   .disc-actions { flex-direction:column; align-items:stretch; }
   .disc-btn-accept,.disc-btn-decline { text-align:center; }
+}
+/* ═══════════ THE LEARN ACADEMY ═══════════
+   Cyberblue: deep navy headings, cyber-blue accents, charcoal body on white.
+   Every rule is scoped to #section-learn on purpose. The Analyser's tokens are
+   dark-only and the Portfolio Manager's are light/dark aware, so a bare class
+   here would inherit whichever half happened to load, which is exactly the
+   collision that produced unreadable panels before. This section owns its own
+   palette and borrows nothing. */
+#section-learn{
+  --ln-navy:#0A2540; --ln-navy2:#13395E; --ln-cyber:#00B4D8; --ln-cyberd:#0077B6;
+  --ln-char:#2D3748; --ln-muted:#5A6B7B; --ln-wash:#E8F6FB; --ln-rule:#CBD9E3;
+  --ln-warm:#FFF4E5; --ln-warmbd:#D98324; --ln-warmtx:#8A5200;
+  --ln-page:#FFFFFF; --ln-zebra:#F4FAFD;
+  background:var(--ln-page); color:var(--ln-char);
+  font-family:Verdana,Geneva,"DejaVu Sans",sans-serif;
+  min-height:calc(100vh - 44px);
+}
+[data-theme="dark"] #section-learn{
+  --ln-navy:#CFE9F5; --ln-navy2:#A8D8EC; --ln-cyber:#00B4D8; --ln-cyberd:#4CC9F0;
+  --ln-char:#DCE6ED; --ln-muted:#93A6B4; --ln-wash:#0E2836; --ln-rule:#25455A;
+  --ln-warm:#3A2A12; --ln-warmbd:#D98324; --ln-warmtx:#F0C48A;
+  --ln-page:#0B1620; --ln-zebra:#101E2A;
+}
+#section-learn *{box-sizing:border-box}
+.ln-hero{background:linear-gradient(135deg,#0A2540 0%,#13395E 55%,#0077B6 100%);
+  color:#fff;padding:38px 22px 34px;text-align:center;}
+.ln-hero-kick{font-size:11px;font-weight:700;letter-spacing:2.4px;color:#7FDBF0;text-transform:uppercase;}
+.ln-hero-ttl{font-size:32px;font-weight:900;letter-spacing:-.5px;margin:10px 0 8px;}
+.ln-hero-sub{font-size:13.5px;color:rgba(255,255,255,.78);max-width:600px;margin:0 auto;line-height:1.65;}
+.ln-hero-rule{width:78px;height:3px;background:#00B4D8;border-radius:2px;margin:18px auto 0;}
+@media(max-width:600px){ .ln-hero{padding:26px 16px} .ln-hero-ttl{font-size:24px} }
+
+.ln-wrap{max-width:1180px;margin:0 auto;padding:22px 20px 70px;
+  display:grid;grid-template-columns:255px minmax(0,1fr);gap:30px;align-items:start;}
+/* Grid items default to min-width:auto, so the guide's widest table (which
+   declares a 460px minimum before it starts scrolling in its own wrapper)
+   pushed the whole column past the edge of a phone screen. The track was the
+   right size; the item was not made to respect it. */
+.ln-wrap > *{min-width:0;max-width:100%;}
+@media(max-width:940px){ .ln-wrap{grid-template-columns:minmax(0,1fr);gap:16px;padding:16px 14px 50px} }
+
+.ln-rail{position:sticky;top:60px;max-height:calc(100vh - 80px);overflow-y:auto;
+  border-right:1px solid var(--ln-rule);padding-right:12px;}
+@media(max-width:940px){ .ln-rail{position:static;max-height:270px;border-right:none;
+  border:1px solid var(--ln-rule);border-radius:10px;padding:10px 12px} }
+/* body carries overflow-x:hidden app-wide (it stops horizontal drift on
+   mobile), which makes body a scroll container the page never scrolls. A
+   position:sticky rail measured against it therefore never sticks. Rather than
+   loosen that global rule and risk the other two apps, the guide scrolls
+   inside its own pane on wide screens, which gives the rail a scrollport that
+   actually moves. Narrow screens keep ordinary page scrolling, where the rail
+   is static anyway. */
+@media(min-width:941px){
+  #section-learn{height:calc(100vh - 44px);overflow-y:auto;}
+  .ln-rail{top:14px;max-height:calc(100vh - 74px);}
+}
+.ln-rail-h{font-size:10.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--ln-cyberd);margin-bottom:10px;cursor:pointer;}
+@media(min-width:941px){
+  /* On desktop the rail is always open, so the disclosure triangle would only
+     invite the reader to collapse their own contents. */
+  .ln-rail > summary{list-style:none;cursor:default;}
+  .ln-rail > summary::-webkit-details-marker{display:none;}
+}
+#learn-toc a{display:block;text-decoration:none;line-height:1.4;border-left:2px solid transparent;}
+a.ln-toc-a{font-size:12.5px;font-weight:700;color:var(--ln-navy);padding:8px 0 5px 10px;margin-top:6px;}
+a.ln-toc-b{font-size:11.5px;color:var(--ln-muted);padding:4px 0 4px 18px;}
+#learn-toc a:hover{color:var(--ln-cyberd);border-left-color:var(--ln-cyber);}
+#learn-toc a.on{color:var(--ln-cyberd);font-weight:700;border-left-color:var(--ln-cyber);
+  background:var(--ln-wash);border-radius:0 6px 6px 0;}
+
+.ln-search{display:flex;gap:8px;margin-bottom:14px;}
+.ln-search input{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--ln-rule);
+  border-radius:8px;font:inherit;font-size:12.5px;background:var(--ln-page);color:var(--ln-char);}
+.ln-search input:focus{outline:none;border-color:var(--ln-cyber);box-shadow:0 0 0 3px rgba(0,180,216,.18);}
+.ln-search button{padding:9px 13px;border:1px solid var(--ln-rule);background:var(--ln-page);
+  color:var(--ln-muted);border-radius:8px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.ln-search button:hover{border-color:var(--ln-cyber);color:var(--ln-cyberd);}
+#learn-searchnote{display:none;font-size:11.5px;color:var(--ln-muted);margin:-6px 0 14px;}
+
+#learn-body h2.ln-h1{font-size:22px;font-weight:900;color:var(--ln-navy);letter-spacing:-.3px;
+  margin:34px 0 16px;padding-bottom:9px;border-bottom:2.5px solid var(--ln-cyber);scroll-margin-top:64px;}
+#learn-body .ln-part:first-child h2.ln-h1{margin-top:4px;}
+#learn-body h3.ln-h2{font-size:16.5px;font-weight:800;color:var(--ln-navy2);
+  margin:26px 0 10px;scroll-margin-top:64px;}
+#learn-body h4.ln-h3{font-size:13.5px;font-weight:800;color:var(--ln-cyberd);margin:18px 0 7px;}
+#learn-body p.ln-p{font-size:13px;line-height:1.75;margin:0 0 11px;color:var(--ln-char);}
+#learn-body ul.ln-ul{margin:0 0 12px;padding-left:20px;}
+#learn-body ul.ln-ul li{font-size:13px;line-height:1.7;margin-bottom:6px;color:var(--ln-char);}
+#learn-body b{color:var(--ln-navy2);font-weight:700;}
+/* Table headers are white on navy, and several of them are bold runs. Without
+   this the rule above repaints that bold text --ln-navy2, which is navy on
+   navy: computed colour on the cell still reads white, so the cell looks fine
+   in devtools and is unreadable on screen. Bold inside a header inherits. */
+#learn-body table.ln-tbl th b{color:inherit;}
+
+.ln-box{border-left:4px solid var(--ln-cyber);background:var(--ln-wash);
+  border-radius:0 10px 10px 0;padding:13px 16px;margin:14px 0 16px;}
+.ln-box p{font-size:12.5px;line-height:1.7;margin:0 0 8px;color:var(--ln-char);}
+.ln-box p:last-child{margin-bottom:0;}
+.ln-box-lbl{font-size:10.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;
+  color:var(--ln-cyberd);margin-bottom:7px;}
+.ln-box-rule{border-left-color:var(--ln-cyberd);}
+.ln-box-caution{border-left-color:var(--ln-warmbd);background:var(--ln-warm);}
+.ln-box-caution .ln-box-lbl{color:var(--ln-warmtx);}
+
+.ln-tw{overflow-x:auto;margin:14px 0 18px;-webkit-overflow-scrolling:touch;}
+table.ln-tbl{border-collapse:collapse;width:100%;min-width:460px;}
+table.ln-tbl th{background:var(--ln-navy);color:#fff;font-size:11.5px;font-weight:700;
+  text-align:left;padding:9px 11px;border:1px solid var(--ln-rule);}
+[data-theme="dark"] table.ln-tbl th{background:#12303F;color:#EAF6FC;}
+table.ln-tbl td{font-size:12px;line-height:1.6;padding:9px 11px;
+  border:1px solid var(--ln-rule);vertical-align:top;color:var(--ln-char);}
+table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
+
+@media print{
+  #app-switcher,.ln-rail,.ln-search,#learn-searchnote,.ln-hero-rule{display:none !important;}
+  #section-learn{height:auto !important;overflow:visible !important;}
+  .ln-wrap{display:block;max-width:none;padding:0;}
+  .ln-hero{background:none;color:#000;padding:0 0 16px;text-align:left;}
+  .ln-hero-kick,.ln-hero-sub{color:#444;}
+  .ln-hero-ttl{color:#0A2540;}
+  #learn-body h2.ln-h1{break-before:page;}
+  #learn-body .ln-part:first-child h2.ln-h1{break-before:auto;}
+  .ln-box,.ln-tw,#learn-body h3.ln-h2{break-inside:avoid;}
 }
 /* Portfolio manager sticky offset when switcher is visible */
 #section-portfolio #nav-wrap { top:44px; }
@@ -1460,6 +1585,7 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   <div style="display:flex;gap:6px;">
     <button id="btn-analyser" onclick="switchApp('analyser')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s;background:linear-gradient(135deg,#006aff,#0052cc);color:#fff;">&#128269; <span>Stock Analyser</span></button>
     <button id="btn-portfolio" onclick="switchApp('portfolio')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128188; <span>Portfolio Manager</span></button>
+    <button id="btn-learn" onclick="switchApp('learn')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128218; <span>Learn</span></button>
   </div>
 </div>
 <div style="height:44px;flex-shrink:0;"></div>
@@ -1471,7 +1597,7 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
     <div style="text-align:center;margin-bottom:38px;">
       <div style="font-size:52px;margin-bottom:12px;">📊</div>
       <div style="font-size:34px;font-weight:900;letter-spacing:-.6px;background:linear-gradient(135deg,#006aff,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;">Welcome to MiyeeStock Buddy</div>
-      <div style="font-size:14.5px;color:var(--text2,#5b6b7f);max-width:520px;margin:0 auto;line-height:1.6;">What would you like to do? You can switch between the two at any time from the header.</div>
+      <div style="font-size:14.5px;color:var(--text2,#5b6b7f);max-width:520px;margin:0 auto;line-height:1.6;">What would you like to do? You can switch between them at any time from the header.</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;">
       <button onclick="switchApp('analyser')" class="launch-card" style="--lc:#006aff">
@@ -1485,6 +1611,12 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
         <div class="launch-ttl">Portfolio Manager</div>
         <div class="launch-sub">Track everything you own: equity, crypto, mutual funds and FDs, with live P&amp;L, XIRR, income and taxation.</div>
         <div class="launch-go">Open my portfolio →</div>
+      </button>
+      <button onclick="switchApp('learn')" class="launch-card" style="--lc:#00B4D8">
+        <div class="launch-ico">📚</div>
+        <div class="launch-ttl">Learn Academy</div>
+        <div class="launch-sub">Start from zero: how markets work, how to read a balance sheet and a candlestick, and what every indicator in this app actually means.</div>
+        <div class="launch-go">Open the guide →</div>
       </button>
     </div>
     <label style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:26px;font-size:12.5px;color:var(--text3,#7b8794);cursor:pointer;">
@@ -3135,6 +3267,430 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
 </div>
 </div>
 </div>
+
+<!-- ══════════ THE LEARN ACADEMY ══════════
+     A third top-level app alongside the Analyser and the Portfolio Manager.
+     The guide itself lives in src/js/learn.js as data, and is rendered on
+     first open rather than at boot: it is a large block list, and paying for
+     it up front would slow the two apps most people actually came for. -->
+<div id="section-learn" style="display:none">
+  <div class="ln-hero">
+    <div class="ln-hero-kick">MiyeeStock Buddy</div>
+    <div class="ln-hero-ttl">The Learn Academy</div>
+    <div class="ln-hero-sub">A complete beginner&#39;s guide to trading and investing in India. It assumes you know nothing, explains every term the moment it appears, and gives you an everyday comparison for each one so it sticks.</div>
+    <div class="ln-hero-rule"></div>
+  </div>
+  <div class="ln-wrap">
+    <details class="ln-rail" id="learn-rail">
+      <summary class="ln-rail-h">Contents</summary>
+      <nav id="learn-toc"></nav>
+    </details>
+    <main>
+      <div class="ln-search">
+        <input id="learn-search" type="search" placeholder="Search the guide, for example ADX, stop loss, P/E" oninput="learnSearch(this.value)" aria-label="Search the guide" />
+        <button type="button" onclick="learnClearSearch()">Clear</button>
+        <button type="button" onclick="window.print()" title="Print the guide or save it as a PDF">Print</button>
+      </div>
+      <div id="learn-searchnote" role="status"></div>
+      <div id="learn-body"></div>
+    </main>
+  </div>
+</div>
+<script>
+// ══════════ THE LEARN ACADEMY ══════════
+// The complete beginner's guide to trading and investing, rendered inside the
+// app. The block list below is generated from the same content that produces
+// the Word edition of the guide, so the two cannot drift apart: one source,
+// two renderers.
+//
+// Blocks are data, never markup. Each is one of:
+//   {k:'h1'|'h2'|'h3', t}                 headings
+//   {k:'p',   r:[{t,b?,i?}]}              a paragraph of runs
+//   {k:'ul',  items:[[run,...]]}          a bullet list
+//   {k:'box', kind, label, lines:[[run]]} an analogy / rule / caution callout
+//   {k:'table', head:[[run]], rows:[[[run]]]}
+// Everything is escaped at render time, so no string here can inject markup.
+
+const LEARN_BLOCKS = [
+  {"k":"box","kind":"note","label":"Read this first","lines":[[{"t":"This guide assumes you know nothing about markets. Every technical term is explained the moment it appears, with an everyday comparison to make it stick."}],[{"t":"Nothing here is investment advice. It is education. No indicator, pattern or ratio in this guide predicts the future. They describe what has already happened, and they help you ask better questions before you risk your own money."}]]},
+  {"k":"h1","t":"Contents"},
+  {"k":"p","r":[{"t":"Five parts, in the order a beginner should read them. Part 1 explains why prices move at all. Part 2 is about the business behind the share. Part 3 and Part 4 are about reading the chart. Part 5 covers everything beyond ordinary shares."}]},
+  {"k":"table","head":[[{"t":"Part","b":1}],[{"t":"What it covers","b":1}],[{"t":"Why it matters","b":1}]],"rows":[[[{"t":"1. Market Mechanics"}],[{"t":"Supply, demand, and the macro forces (inflation, RBI rates, crude oil, global cues)"}],[{"t":"Explains the tide that lifts or sinks every boat"}]],[[{"t":"2. Fundamental Analysis"}],[{"t":"Reading the health of the business behind the share"}],[{"t":"Tells you WHAT is worth owning"}]],[[{"t":"3. Technical Analysis"}],[{"t":"Candlesticks, chart patterns, breakouts"}],[{"t":"Tells you WHEN the crowd is turning"}]],[[{"t":"4. Indicator Guide"}],[{"t":"Every indicator used in the app reports, explained plainly"}],[{"t":"Turns the numbers on your screen into meaning"}]],[[{"t":"5. Multi Asset"}],[{"t":"Futures, options, commodities, currency, crypto, global indices"}],[{"t":"Shows what else exists, and what it costs you"}]],[[{"t":"6. Before You Trade"}],[{"t":"Position sizing, stop losses, risk and reward"}],[{"t":"The part that decides whether you survive"}]]]},
+  {"k":"h1","t":"Part 1. Market Mechanics and Macroeconomics"},
+  {"k":"h2","t":"1.1 Why Prices Move At All"},
+  {"k":"p","r":[{"t":"A share price is not a fact handed down by anybody. It is simply the price at which the last buyer and the last seller agreed to do business. That is the whole of it. Everything else in this guide is an attempt to understand who those people are and what they are likely to do next."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Stand in a vegetable mandi at six in the morning. Forty buyers want tomatoes. Only ten crates arrived because the rain spoiled the rest. Nobody announces a price rise, yet the price rises anyway, because buyers outbid each other to get a crate before it runs out."}],[{"t":"Now stand in the same mandi at eleven. The crates are still half full and the market shuts at noon. Sellers begin cutting the price, because unsold tomatoes are worth nothing by evening."}],[{"t":"The stock exchange is that mandi, running all day, with shares instead of crates and a screen instead of shouting. The price rises when buyers are more desperate than sellers, and falls when sellers are more desperate than buyers. Nothing more mysterious than that."}]]},
+  {"k":"p","r":[{"t":"This is worth repeating because beginners often assume a falling price means the company is in trouble. Sometimes it does. Often it just means a large holder needed cash that week, and there were not enough buyers that day to absorb the shares."}]},
+  {"k":"h3","t":"Supply and demand in real terms"},
+  {"k":"ul","items":[[{"t":"More buyers than sellers: ","b":1},{"t":"price rises until enough holders are tempted to sell."}],[{"t":"More sellers than buyers: ","b":1},{"t":"price falls until it is cheap enough to tempt new buyers in."}],[{"t":"Volume ","b":1},{"t":"is the number of shares that changed hands. A price move on heavy volume means many people agreed with it. The same move on thin volume may just be one impatient order."}]]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"Price tells you what happened. Volume tells you how much conviction was behind it. ","b":1},{"t":"A breakout on huge volume is a crowd deciding something. The same breakout on nothing is often a trap."}]]},
+  {"k":"h2","t":"1.2 The Macro Environment: The Tide Under Every Boat"},
+  {"k":"p","r":[{"t":"You can pick a wonderful company and still lose money for two years, because the whole market was falling. These are the four forces that move the whole market at once."}]},
+  {"k":"h3","t":"Inflation: your money quietly shrinking"},
+  {"k":"p","r":[{"t":"Inflation is the rate at which prices in general rise. If inflation is six percent, the hundred rupee note in your pocket buys ninety four rupees worth of goods a year from now, without you spending a paisa."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Inflation is a slow leak in a bucket. You are not spending the water, but there is less of it every morning. This is why leaving all your savings in a cupboard is not \"safe\", it is a guaranteed slow loss."}]]},
+  {"k":"h3","t":"The RBI repo rate: the price of borrowing money"},
+  {"k":"p","r":[{"t":"The Reserve Bank of India lends money to commercial banks. The interest rate on that lending is called the repo rate. It is the single most important number in Indian finance, because everything else is priced off it."}]},
+  {"k":"p","r":[{"t":"When inflation runs hot, the RBI raises the repo rate to cool the economy down. Here is the chain of effects, and it is worth learning by heart:"}]},
+  {"k":"ul","items":[[{"t":"Repo rate rises, so banks pay more for money."}],[{"t":"Banks charge more on home loans, car loans and business loans."}],[{"t":"Companies borrow less, so they build fewer factories and hire more slowly."}],[{"t":"Future company profits are expected to be smaller, so investors will pay less for the shares today."}],[{"t":"At the same time, fixed deposits and bonds now pay more, so some money leaves shares entirely and moves there."}]]},
+  {"k":"p","r":[{"t":"The result: rising rates usually push share prices down, and falling rates usually push them up, regardless of how good the individual company is."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"The repo rate is the thermostat of the economy. Turn it up and the room cools: activity slows, borrowing gets expensive, and speculative bets get abandoned first. Turn it down and the room warms: cheap money flows into property, business expansion and shares."}]]},
+  {"k":"box","kind":"note","label":"Who feels it most","lines":[[{"t":"Hurt most by rising rates: ","b":1},{"t":"companies carrying heavy debt, real estate developers, and anything bought on loans (cars, homes, consumer durables). A highly indebted company pays more interest, and less is left for shareholders."}],[{"t":"Helped by rising rates: ","b":1},{"t":"banks and lenders such as HDFC Bank often earn a wider gap between what they pay depositors and what they charge borrowers."}]]},
+  {"k":"h3","t":"Crude oil: India imports most of what it burns"},
+  {"k":"p","r":[{"t":"India buys the large majority of its crude oil from abroad and pays for it in US dollars. That makes the crude price a direct input into the Indian economy rather than a distant headline."}]},
+  {"k":"ul","items":[[{"t":"Crude rises, so India’s import bill rises and more rupees must be sold to buy dollars, which weakens the rupee."}],[{"t":"A weaker rupee makes every other import dearer, which pushes inflation up, which pressures the RBI to raise rates."}],[{"t":"Transport and packaging costs rise for almost every company, squeezing profit margins."}]]},
+  {"k":"p","r":[{"t":"Some businesses feel it immediately. Paint companies use crude derivatives as raw material. Tyre makers use rubber and carbon black. Airlines buy jet fuel, which is their single largest cost. When crude spikes, look at those first."}]},
+  {"k":"p","r":[{"t":"Reliance Industries is the interesting exception. It refines crude, so parts of its business can benefit when refining margins widen. This is why a single macro event helps some Indian companies and hurts others, and why \"oil is up so the market falls\" is too crude a rule to trade on."}]},
+  {"k":"h3","t":"Global events: why Indian markets watch America overnight"},
+  {"k":"p","r":[{"t":"Large international investors, called Foreign Institutional Investors, move money between countries looking for the best return for the risk. When the American central bank raises rates, US government bonds start paying more for almost no risk. Some of that money then leaves emerging markets like India and goes home."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Imagine a landlord with flats in two cities. When rents in the safer city rise sharply, he sells a flat in the riskier city to buy there instead. He may have nothing against the riskier city. The maths simply changed."}],[{"t":"When foreign investors sell in bulk, the Nifty falls even if Indian companies are doing perfectly well that quarter."}]]},
+  {"k":"p","r":[{"t":"Wall Street closes late at night Indian time. By the time you wake up, the GIFT Nifty (an Indian index traded outside normal Indian hours) has usually already reacted, which is why it is a reasonable early hint of how our market will open. Part 5 returns to this."}]},
+  {"k":"h1","t":"Part 2. Fundamental Analysis: Judging the Business"},
+  {"k":"h2","t":"2.1 The Core Idea: The Shop, Not The Price Tag"},
+  {"k":"p","r":[{"t":"When you buy a share you are buying a small ownership slice of a real business. Not a lottery ticket, not a number on a screen. A slice of a business."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Suppose a friend offers to sell you a kirana shop. You would not decide on the asking price alone. You would ask: how much does it sell in a day, what is the rent, how much stock is unsold, are there loans on it, do customers come back, and is a supermarket opening next door?"}],[{"t":"Only after all that does the asking price mean anything. Eighty lakh is expensive for a dying shop and cheap for a thriving one."}],[{"t":"Fundamental analysis is exactly that set of questions, asked about a listed company using its published accounts."}]]},
+  {"k":"p","r":[{"t":"Every listed Indian company must publish its results every three months. Those numbers are the raw material. The ratios below are just convenient ways of comparing them."}]},
+  {"k":"h2","t":"2.2 The Key Ratios, In Plain Language"},
+  {"k":"h3","t":"P/E ratio: how many years of profit you are paying"},
+  {"k":"p","r":[{"t":"P/E stands for Price to Earnings. Take the share price and divide it by the profit the company earns per share in a year."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"The shop earns one lakh rupees of profit a year. The owner wants twenty lakh for it. You are paying twenty years of current profit, so the P/E is twenty."}],[{"t":"That is not automatically expensive. If the shop’s profit is growing thirty percent a year, you may earn it back far sooner. And it is not automatically cheap at a P/E of eight, if profits are shrinking every year."}]]},
+  {"k":"ul","items":[[{"t":"Only compare like with like. ","b":1},{"t":"A software company and a steel company do not share a fair P/E. Compare a company with its own sector, and with its own history."}],[{"t":"A very low P/E is a question, not an answer. ","b":1},{"t":"Ask why the market is unwilling to pay more. Often there is a reason."}]]},
+  {"k":"h3","t":"ROE and ROCE: the difference that catches beginners out"},
+  {"k":"p","r":[{"t":"Return on Equity (ROE) measures profit earned on the shareholders’ own money. Return on Capital Employed (ROCE) measures profit earned on all the money the business uses, which is the owners’ money plus the borrowed money."}]},
+  {"k":"p","r":[{"t":"The gap between the two is where borrowed money hides, and it matters enormously."}]},
+  {"k":"table","head":[[],[{"t":"Shopkeeper A","b":1}],[{"t":"Shopkeeper B","b":1}]],"rows":[[[{"t":"Own money put in"}],[{"t":"10 lakh"}],[{"t":"2 lakh"}]],[[{"t":"Money borrowed"}],[{"t":"nil"}],[{"t":"8 lakh"}]],[[{"t":"Total capital used"}],[{"t":"10 lakh"}],[{"t":"10 lakh"}]],[[{"t":"Annual profit"}],[{"t":"2 lakh"}],[{"t":"2 lakh"}]],[[{"t":"ROE (profit on own money)","b":1}],[{"t":"20 percent","b":1}],[{"t":"100 percent","b":1}]],[[{"t":"ROCE (profit on all money)","b":1}],[{"t":"20 percent","b":1}],[{"t":"20 percent","b":1}]]]},
+  {"k":"p","r":[{"t":"Shopkeeper B looks like a genius on ROE and is in fact no better at running a shop. He simply used the bank’s money. If sales fall for one season, A survives comfortably and B still owes the bank every month."}]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"Look at ROE and ROCE together. When ROE is far above ROCE, borrowing is doing the work, not the business. A consistently high ROCE (comfortably above fifteen percent for several years) is one of the strongest signs of a genuinely good business."}]]},
+  {"k":"h3","t":"Debt to Equity: how much of the business belongs to lenders"},
+  {"k":"p","r":[{"t":"This compares borrowed money against the owners’ money. A ratio of 1 means the company has borrowed one rupee for every rupee the owners put in."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"A home loan is comfortable when your salary is steady and painful when your income is uncertain. A company is no different. Debt magnifies good years and can be fatal in bad ones, because interest must be paid whether or not the company made a profit."}]]},
+  {"k":"ul","items":[[{"t":"Below 0.5 is generally comfortable for an ordinary manufacturing or consumer business."}],[{"t":"Above 1 deserves a proper explanation before you invest."}],[{"t":"Banks and lending companies are the exception. Borrowing is their raw material, so this ratio is not meaningful for them and should not be compared against ordinary companies."}]]},
+  {"k":"h3","t":"Operating Profit Margin: what survives the running costs"},
+  {"k":"p","r":[{"t":"Of every hundred rupees of sales, how many rupees are left after the costs of actually running the business, before interest and tax. That is the operating profit margin."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Two shops each sell ten lakh of goods. One keeps twenty five thousand after all its costs, the other keeps one lakh fifty thousand. The second has room to survive a bad year, to cut prices against a competitor, and to fund its own expansion. The first is one bad season from trouble."}]]},
+  {"k":"p","r":[{"t":"Watch the direction as much as the level. A margin that improves year after year usually means the company has real pricing power or is getting more efficient. A margin quietly falling for three years is a warning that competition is biting."}]},
+  {"k":"h3","t":"Cash conversion: profit on paper versus money in the bank"},
+  {"k":"p","r":[{"t":"This is the ratio most beginners have never heard of, and it is the one that exposes the most trouble."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Your shop sells ten lakh of goods this year, all on credit, and not one customer has paid yet. Your accounts show a healthy profit. Your bank balance is empty. You cannot pay staff with an invoice."}],[{"t":"That is a company with profit and no cash. It may be perfectly innocent (a growing business often funds customers), or it may be that the \"sales\" are never going to be collected."}]]},
+  {"k":"p","r":[{"t":"The honest check is simple: over a few years, does the cash actually generated by operations roughly track the reported profit? If profits keep rising while operating cash flow does not follow, something needs explaining. Many well known accounting failures were visible in this gap years before the share price collapsed."}]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"Profit is an opinion, formed under accounting rules. Cash is a fact. When the two disagree for several years running, believe the cash."}]]},
+  {"k":"h2","t":"2.3 What Multibaggers Tend To Have In Common"},
+  {"k":"p","r":[{"t":"A \"multibagger\" is simply a share that multiplies your money several times over. Nobody can reliably identify them in advance, and anyone who claims otherwise is selling something. But the ones that worked in India have shared recognisable features, and it is worth knowing what they are."}]},
+  {"k":"h3","t":"A moat that gets wider as the business grows"},
+  {"k":"p","r":[{"t":"A moat is a durable advantage that competitors cannot easily copy. The important word is durable."}]},
+  {"k":"p","r":[{"t":"Avenue Supermarts, which runs DMART, is the clearest Indian example. It buys in enormous volume so it pays suppliers less, it owns many of its stores instead of paying rent, and it passes the savings on as low prices. Low prices bring more shoppers, more shoppers mean bigger volumes, bigger volumes mean even better buying terms. The advantage feeds itself. A new competitor cannot simply decide to have that."}]},
+  {"k":"p","r":[{"t":"Cupid Ltd is a different flavour of the same idea: a small company in a specialised regulated product where global approvals and tender relationships are slow and difficult to obtain, which keeps most competitors out. Small companies can have moats too, and those are often where the largest percentage gains come from, along with the largest risks."}]},
+  {"k":"h3","t":"A clean balance sheet"},
+  {"k":"p","r":[{"t":"Low debt is not exciting, and it is what allows a company to survive long enough for the growth story to play out. A great business with too much borrowing can still be wiped out by two bad years and a rate rise."}]},
+  {"k":"h3","t":"Profits growing faster than sales"},
+  {"k":"p","r":[{"t":"This is the single most useful pattern to look for, and it is easy to check."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"If sales grow twenty percent and profits grow twenty percent, the company is simply getting bigger."}],[{"t":"If sales grow twenty percent and profits grow thirty five percent, then something better is happening: each new rupee of sales is more profitable than the last. The business is gaining efficiency or pricing power as it scales."}]]},
+  {"k":"p","r":[{"t":"That widening gap, sustained over several years, is what quietly turns a good company into a very large one."}]},
+  {"k":"h3","t":"A long runway"},
+  {"k":"p","r":[{"t":"Ask how big this business could reasonably become. A company that already serves nearly everyone who will ever want its product has limited room left, however excellent it is. A company with a small share of a very large and growing need has somewhere to go."}]},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"Every one of these features is visible only in the past. None of them guarantees the future. Companies with all four have still failed, because of a regulation change, a new technology, a fraud, or simply a management that lost its way. Position sizing (Part 6) is what protects you from being wrong, and you will be wrong sometimes."}]]},
+  {"k":"h1","t":"Part 3. Technical Analysis and Reading Candlesticks"},
+  {"k":"h2","t":"3.1 What Technical Analysis Actually Measures"},
+  {"k":"p","r":[{"t":"Technical analysis studies the price and volume history of a share. It does not study the business. It is a way of measuring crowd behaviour: fear, greed, patience and panic, recorded as a chart."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Fundamental analysis asks whether the restaurant cooks good food. Technical analysis stands outside and counts how many people are queueing, and whether the queue is growing or thinning."}],[{"t":"Both are useful, and they answer different questions. A queue outside a bad restaurant is a fad. A great restaurant nobody has noticed yet is an opportunity, but you may wait a long time."}]]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"A sensible way to combine them: use fundamentals to decide WHAT you are willing to own, and technicals to help with WHEN you act. Never let a chart pattern talk you into owning a business you would not otherwise want."}]]},
+  {"k":"h2","t":"3.2 How To Read A Candlestick"},
+  {"k":"p","r":[{"t":"Each candle summarises one time period, usually one day on the charts a beginner should start with. It packs four numbers into one shape."}]},
+  {"k":"table","head":[[{"t":"Part of the candle","b":1}],[{"t":"What it shows","b":1}],[{"t":"In plain terms","b":1}]],"rows":[[[{"t":"Open"}],[{"t":"The first traded price of the day"}],[{"t":"Where the argument started"}]],[[{"t":"Close"}],[{"t":"The last traded price of the day"}],[{"t":"Who was winning when the bell rang"}]],[[{"t":"High"}],[{"t":"The highest price reached"}],[{"t":"The furthest buyers managed to push"}]],[[{"t":"Low"}],[{"t":"The lowest price reached"}],[{"t":"The furthest sellers managed to push"}]],[[{"t":"Body"}],[{"t":"The block between open and close"}],[{"t":"The day’s actual outcome"}]],[[{"t":"Wicks (shadows)"}],[{"t":"The thin lines above and below the body"}],[{"t":"Ground that was taken and then lost"}]]]},
+  {"k":"p","r":[{"t":"A green (or white) candle means the close was above the open: buyers finished ahead. A red (or black) candle means the close was below the open: sellers finished ahead."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Picture a tug of war lasting one day. The body is where the rope ended up. The wicks show how far each team briefly dragged it before being pulled back."}],[{"t":"A long lower wick means sellers dragged the price far down during the day, and buyers hauled it all the way back before the close. That is useful information: somebody with money was willing to defend that level."}]]},
+  {"k":"box","kind":"note","label":"Reading shapes at a glance","lines":[[{"t":"Long body, tiny wicks: ","b":1},{"t":"one side was in control all day. Conviction."}],[{"t":"Tiny body, long wicks both sides: ","b":1},{"t":"a violent argument that settled nowhere. Indecision."}],[{"t":"Long upper wick: ","b":1},{"t":"buyers pushed up and were beaten back down. Often a sign of selling into strength."}],[{"t":"Long lower wick: ","b":1},{"t":"sellers pushed down and were beaten back up. Often a sign of buying into weakness."}]]},
+  {"k":"h2","t":"3.3 Classic Patterns, With Entry, Stop Loss and Target"},
+  {"k":"p","r":[{"t":"A pattern is only a shape until price confirms it. The single most common beginner mistake is acting on a shape before it completes. Every rule below waits for a closing price, not an intraday poke."}]},
+  {"k":"h3","t":"Symmetrical triangle: the coiled spring"},
+  {"k":"p","r":[{"t":"Highs get lower, lows get higher, and price squeezes into a narrowing point. Buyers are getting braver and sellers are getting more cautious at the same time, or the reverse. The market is compressing."}]},
+  {"k":"ul","items":[[{"t":"What it means: ","b":1},{"t":"indecision under pressure. Neither side can win yet, so energy builds."}],[{"t":"What it does NOT tell you: ","b":1},{"t":"the direction. A symmetrical triangle can break either way. Anyone who tells you it is \"a bullish pattern\" is guessing."}],[{"t":"Entry: ","b":1},{"t":"only on a daily close outside the triangle, ideally with volume clearly above the recent average."}],[{"t":"Stop loss: ","b":1},{"t":"just back inside the triangle. If price returns inside, the breakout failed and the reason for the trade has gone."}],[{"t":"Target: ","b":1},{"t":"measure the height of the triangle at its widest point and project that distance from the breakout level."}]]},
+  {"k":"h3","t":"Bullish breakout: price clears a ceiling"},
+  {"k":"p","r":[{"t":"A resistance level is a price where sellers have repeatedly appeared and stopped the advance. A breakout is a decisive close above it."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Think of a room with a low ceiling. Price keeps bumping its head at 500 rupees and falling back. Each time, some holders who bought at 500 earlier and were trapped take the chance to exit at breakeven, which supplies the selling."}],[{"t":"Eventually those trapped holders are exhausted. The next attempt goes clean through, and the old ceiling becomes the new floor, because anyone who wants in now must pay above 500."}]]},
+  {"k":"ul","items":[[{"t":"Entry: ","b":1},{"t":"a daily close above the resistance level, on volume noticeably higher than the recent average. Volume is what separates a real breakout from a trap."}],[{"t":"Stop loss: ","b":1},{"t":"below the most recent swing low, or below the base the stock broke out of. If price closes back below the old ceiling, the breakout has failed."}],[{"t":"Target: ","b":1},{"t":"the height of the base added to the breakout price, and take partial profits along the way rather than waiting for perfection."}]]},
+  {"k":"h3","t":"Bearish breakdown: the same thing upside down"},
+  {"k":"p","r":[{"t":"A support level is a price where buyers have repeatedly stepped in. A breakdown is a decisive close below it, and the old floor then tends to act as a ceiling on any bounce. Entry, stop and target mirror the breakout exactly, in the opposite direction."}]},
+  {"k":"h3","t":"Bullish engulfing: a one day change of heart"},
+  {"k":"p","r":[{"t":"Two candles. The first is red. The second is green and its body completely covers (engulfs) the first candle’s body: it opens at or below the previous close and closes at or above the previous open."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"On day one sellers won. On day two sellers opened in control again, and by the close buyers had not only recovered every inch but taken more ground than sellers gained the day before. Somebody decided, in one session, that this price was a bargain."}]]},
+  {"k":"ul","items":[[{"t":"Where it matters: ","b":1},{"t":"after a clear fall, and at a level that already mattered (an old support, a 200 day average, a Fibonacci zone). In the middle of a sideways drift it means very little."}],[{"t":"Entry: ","b":1},{"t":"above the high of the engulfing candle, so price must confirm the reversal rather than you assuming it."}],[{"t":"Stop loss: ","b":1},{"t":"below the low of the engulfing candle."}],[{"t":"Strengthened by: ","b":1},{"t":"heavy volume on the green candle, and an oversold momentum reading (Part 4)."}]]},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"Patterns fail regularly. This is normal and not a defect. A pattern is a probability tilt, not a promise, which is exactly why every one of the rules above includes a stop loss written down before you enter."}]]},
+  {"k":"h1","t":"Part 4. The Complete Indicator Guide"},
+  {"k":"p","r":[{"t":"These are the indicators that appear in the app reports. Every one of them is a calculation on past price or volume. None of them knows the future. Used well, they summarise a great deal of chart history into a number you can act on. Used badly, they produce confident nonsense, and this section is careful to say when each one is unreliable."}]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"Indicators from the same family repeat each other. RSI, Stochastic, CCI and Williams %R all measure roughly the same thing. Four of them agreeing is not four opinions, it is one opinion said four times. Take one from each family instead: one for trend, one for momentum, one for volume."}]]},
+  {"k":"h2","t":"4.1 RSI, the Relative Strength Index"},
+  {"k":"p","r":[{"t":"A meter from 0 to 100 that measures how hard the price has been pushed recently, by comparing the size of recent gains against the size of recent falls."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"RSI is the speedometer, not the steering wheel. It tells you how fast the move is going, not which way the road turns."}],[{"t":"A car at 130 kilometres per hour is not necessarily about to crash, but it cannot keep accelerating forever. That is exactly what a high RSI is telling you: this pace is unusual and hard to sustain."}]]},
+  {"k":"table","head":[[{"t":"Reading","b":1}],[{"t":"Name","b":1}],[{"t":"What a beginner should take from it","b":1}]],"rows":[[[{"t":"Above 70"}],[{"t":"Overbought"}],[{"t":"Buyers have pushed hard. Rallies often pause or pull back from here. It is NOT an automatic sell signal."}]],[[{"t":"Below 30"}],[{"t":"Oversold"}],[{"t":"Sellers have pushed hard. Falls often stall and bounce from here. It is NOT an automatic buy signal."}]],[[{"t":"45 to 55"}],[{"t":"Neutral"}],[{"t":"Nobody is in control. The reading carries little information."}]]]},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"The classic beginner trap: in a genuinely strong trend, RSI can sit above 70 for weeks while the price keeps climbing. Selling simply because RSI crossed 70 is one of the most reliable ways to exit a good position far too early. Overbought means \"stretched\", not \"finished\"."}]]},
+  {"k":"h2","t":"4.2 MACD, Moving Average Convergence Divergence"},
+  {"k":"p","r":[{"t":"It compares a fast average of price against a slow average of price. When the fast one crosses above the slow one, recent prices are pulling away upwards, and momentum has turned up. When it crosses below, momentum has turned down."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Two runners: a sprinter (the fast average) and a marathon runner (the slow one). When the sprinter overtakes, the near term pace has picked up. When the sprinter falls behind, the effort is fading."}]]},
+  {"k":"ul","items":[[{"t":"The signal: ","b":1},{"t":"the crossover itself, up for bullish and down for bearish."}],[{"t":"Its weakness: ","b":1},{"t":"it is early, so it misfires often on its own, and it misfires most in sideways markets where the two averages keep tangling."}],[{"t":"Use it with: ","b":1},{"t":"the wider trend. A MACD buy signal while price sits above its 200 day average is a very different thing from the same signal in a downtrend."}]]},
+  {"k":"h2","t":"4.3 ADX, the Average Directional Index: The Most Important One To Learn First"},
+  {"k":"p","r":[{"t":"ADX measures how strong a trend is. It deliberately does not tell you which direction. This sounds useless and is in fact the most valuable filter a beginner can have."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"ADX is not the compass, it is the answer to \"is there a road here at all?\""}],[{"t":"A compass is invaluable on a road. In the middle of a featureless field, the compass still points north confidently while getting you nowhere. Most beginner losses come from following a confident compass across a field."}]]},
+  {"k":"table","head":[[{"t":"ADX reading","b":1}],[{"t":"Market condition","b":1}],[{"t":"What to do about it","b":1}]],"rows":[[[{"t":"Below 20","b":1}],[{"t":"No trend, choppy and sideways","b":1}],[{"t":"Trend indicators produce FALSE SIGNALS here. This is the moment to HOLD and do nothing. The app deliberately holds its verdict when ADX is this low.","b":1}]],[[{"t":"20 to 25"}],[{"t":"Weak or forming trend"}],[{"t":"Treat signals with caution. Wait for confirmation before committing."}]],[[{"t":"Above 25"}],[{"t":"A real trend is in place"}],[{"t":"Trend following signals (moving averages, Supertrend, MACD) carry genuine weight here."}]],[[{"t":"Above 40"}],[{"t":"Very strong trend"}],[{"t":"Moves in the trend direction tend to keep going. Do not fight it on an overbought reading alone."}]]]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"If you remember only one rule from this entire guide, make it this one: when ADX is below 20, the market is choppy and directionless. ","b":1},{"t":"Breakouts fail, crossovers whipsaw, and patterns do not complete. Doing nothing is a position, and in a sideways market it is usually the winning one."}]]},
+  {"k":"h2","t":"4.4 Stochastic Oscillator (%K and %D)"},
+  {"k":"p","r":[{"t":"It asks a narrow question: where did today’s close sit inside the high to low range of the recent past? Near the top of the range, or near the bottom?"}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Think of a ball bouncing inside a lift shaft. Stochastic tells you whether the ball is near the ceiling or near the floor of its recent range. It reacts faster than RSI, which means it spots turns earlier and also cries wolf more often."}]]},
+  {"k":"ul","items":[[{"t":"Above 80 is overbought territory, below 20 is oversold."}],[{"t":"There are two lines: %K is the fast one, %D is a smoothed version of it. The trigger is %K crossing %D, not merely the level."}],[{"t":"It suits sideways and range bound markets, where it is often better than RSI. In a strong trend it stays pinned at an extreme and becomes useless."}]]},
+  {"k":"h2","t":"4.5 Moving Averages: SMA 20, 50 and 200"},
+  {"k":"p","r":[{"t":"A moving average is simply the average closing price over the last N days, recalculated each day. It smooths out daily noise so the underlying direction becomes visible."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"One day of price is a single day’s mood. A moving average is the running mood of the last twenty, fifty or two hundred days. The longer the period, the slower and more serious it is."}]]},
+  {"k":"table","head":[[{"t":"Average","b":1}],[{"t":"Represents","b":1}],[{"t":"How it is normally used","b":1}]],"rows":[[[{"t":"SMA 20"}],[{"t":"Short term, roughly one trading month"}],[{"t":"The immediate pulse. Useful for timing entries in an existing trend."}]],[[{"t":"SMA 50"}],[{"t":"Medium term, roughly one quarter"}],[{"t":"The trend most swing traders actually follow."}]],[[{"t":"SMA 200"}],[{"t":"Long term, roughly one year"}],[{"t":"The dividing line of the whole market. Above it is considered a bull phase for that stock, below it a bear phase."}]]]},
+  {"k":"p","r":[{"t":"The 200 day average deserves special respect. Large institutions genuinely watch it, which makes it partly self fulfilling. A stock reclaiming its 200 day average after months below is a meaningful change of character, and a stock losing it after months above is a warning worth acting on."}]},
+  {"k":"box","kind":"note","label":"The crossovers you will hear named","lines":[[{"t":"Golden cross: ","b":1},{"t":"the 50 day average crosses above the 200 day average. Widely read as a shift into a longer term uptrend."}],[{"t":"Death cross: ","b":1},{"t":"the 50 day crosses below the 200 day. The mirror image, read as a shift into a longer term downtrend."}],[{"t":"Both are slow by nature. They confirm a change that has already begun, they do not predict one. That is a feature, not a fault."}]]},
+  {"k":"h2","t":"4.6 Supertrend and Parabolic SAR: The Automatic Traffic Lights"},
+  {"k":"p","r":[{"t":"Both draw a line that follows price at a distance and flips to the other side when the trend changes. They are trailing stop and reverse tools: they suggest where to get out, and then suggest the opposite position."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"A Supertrend line is a guard rail that only ever moves in your favour. In an uptrend it sits below price and ratchets upward, never downward. It locks in ground you have already gained and refuses to give it back."}],[{"t":"Parabolic SAR is a series of dots doing the same job, and it tightens faster the longer a trend runs, as though it is getting nervous the further you go."}]]},
+  {"k":"ul","items":[[{"t":"Price above the line favours the upside. A close through the line is the usual signal to flip."}],[{"t":"They are excellent in strong trends and genuinely poor in sideways markets, where they flip repeatedly and generate loss after small loss."}],[{"t":"This is precisely why you check ADX first. Below 20, ignore both."}]]},
+  {"k":"h2","t":"4.7 MFI, the Money Flow Index"},
+  {"k":"p","r":[{"t":"MFI is RSI with volume added. It weighs each price move by how many shares actually traded, so it distinguishes a move that many people participated in from a move that happened on almost nothing."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"RSI counts how loudly the crowd is cheering. MFI counts how many people are actually in the stadium."}],[{"t":"A price rising on thin volume is a small group getting excited. A price rising on heavy volume suggests larger participants, often institutions, are genuinely buying."}]]},
+  {"k":"ul","items":[[{"t":"Above 80 means heavy inflow. Watch for exhaustion."}],[{"t":"Below 20 means the stock is washed out. Sellers may be finished."}],[{"t":"The most useful signal is disagreement with price: if price makes a new high and MFI does not, the rally is running on fewer and fewer participants."}]]},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"MFI needs real volume data to mean anything. For thinly traded small companies, or when a data feed does not carry volume, the reading should be ignored rather than trusted. The app deliberately shows nothing rather than a number in that situation."}]]},
+  {"k":"h2","t":"4.8 CCI and Williams %R: Spotting The Extremes"},
+  {"k":"p","r":[{"t":"Both answer the same question in slightly different ways: how far has the price strayed from what is normal for it recently?"}]},
+  {"k":"ul","items":[[{"t":"CCI (Commodity Channel Index): ","b":1},{"t":"above +100 means unusually strong, below -100 means unusually weak. Despite the name it is used on shares, not only commodities."}],[{"t":"Williams %R: ","b":1},{"t":"runs from 0 to -100. Above -20 is overbought, below -80 is oversold."}]]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"These are the \"how unusual is this?\" gauges. A temperature of 42 degrees is not impossible in India, it is simply far from normal, and things that are far from normal tend to return towards it eventually."}]]},
+  {"k":"box","kind":"note","label":"A note worth knowing","lines":[[{"t":"Williams %R and the Stochastic %K are, mathematically, the same measurement shifted by a constant. If you already read one, the other adds no new information. Treating them as two independent confirmations is a genuine and common error."}]]},
+  {"k":"h2","t":"4.9 ATR, the Average True Range: Your Volatility Yardstick"},
+  {"k":"p","r":[{"t":"ATR measures how much a stock typically moves in a single day, in rupees. It says nothing about direction. It is purely a measure of how jumpy the stock is."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"ATR is the difference between standing next to a sleeping cat and standing next to a sleeping tiger. Both are still. You would sensibly keep a very different distance from each."}],[{"t":"A stock that routinely swings 40 rupees a day needs a far wider stop loss than one that moves 4 rupees, even if you are risking the same amount of money on both."}]]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"This is the practical use, and it matters more than any signal in this guide. ","b":1},{"t":"Set your stop loss at roughly 1.5 to 3 times the ATR away from your entry (2x ATR is a sensible default). A stop tighter than one ATR will be hit by ordinary daily noise, not by your idea being wrong."}]]},
+  {"k":"p","r":[{"t":"Concretely: you buy at 1,000 rupees and ATR is 25 rupees. A 2x ATR stop sits at 950. If you had instead placed a \"neat\" stop at 990, you would be stopped out by an entirely normal day, before the stock had any chance to do what you expected."}]},
+  {"k":"p","r":[{"t":"ATR also sizes your position. If your stop is 50 rupees away and you have decided to risk 5,000 rupees on this idea, then you buy 100 shares. The maths does the deciding, not your enthusiasm."}]},
+  {"k":"h2","t":"4.10 Support, Resistance and the 20 Day High and Low"},
+  {"k":"p","r":[{"t":"Support is a price where buyers have repeatedly appeared. Resistance is a price where sellers have repeatedly appeared. They are levels of memory, not physics."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"A stock fell hard from 800 last year, and many people who bought near 800 are still holding at a loss. As price climbs back towards 800, those holders finally see a chance to escape at breakeven, and they sell. That supply is what creates resistance. It is human memory, priced."}]]},
+  {"k":"ul","items":[[{"t":"The 20 day high and low mark the recent battleground: the highest and lowest a stock has traded in roughly the last month. A close above the 20 day high is a simple, honest definition of short term strength."}],[{"t":"The more times a level has held, the more meaningful a break of it becomes."}],[{"t":"Once broken, roles reverse: old resistance tends to act as new support, and old support as new resistance."}]]},
+  {"k":"h2","t":"4.11 Fibonacci Retracement Levels"},
+  {"k":"p","r":[{"t":"After a strong move, prices rarely travel in a straight line. They pull back, and Fibonacci levels mark the depths at which pullbacks commonly end: 23.6 percent, 38.2 percent, 50 percent, 61.8 percent and 78.6 percent of the previous move."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Picture a staircase. A ball bouncing down does not fall to the bottom in one go, it pauses on steps. These percentages are the steps that traders around the world are watching, which is a large part of why they work at all."}]]},
+  {"k":"table","head":[[{"t":"Level","b":1}],[{"t":"Depth of pullback","b":1}],[{"t":"What it usually suggests","b":1}]],"rows":[[[{"t":"23.6 percent"}],[{"t":"Very shallow"}],[{"t":"A powerful trend that barely paused for breath."}]],[[{"t":"38.2 percent"}],[{"t":"Shallow"}],[{"t":"A healthy pause within a strong trend."}]],[[{"t":"50 percent"}],[{"t":"Half of the move given back"}],[{"t":"Common and still normal. Widely watched."}]],[[{"t":"61.8 percent"}],[{"t":"Deep"}],[{"t":"The last level where the original trend can be said to be intact."}]],[[{"t":"78.6 percent"}],[{"t":"Very deep"}],[{"t":"The move is in real doubt. Treat a bounce here with suspicion."}]]]},
+  {"k":"p","r":[{"t":"The 50 percent and 61.8 percent levels are where healthy pullbacks usually end. A retracement that slices through 78.6 percent is telling you the trend has probably finished, not that it is a bargain."}]},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"Fibonacci levels are zones, not exact prices. Waiting for a stock to touch 61.83 to the paisa is false precision. Look for the price to stabilise near the level and then confirm with a candle pattern or a volume signal before acting."}]]},
+  {"k":"h2","t":"4.12 The Base Breakout Screener: Minervini and O’Neil Metrics"},
+  {"k":"p","r":[{"t":"Mark Minervini and William O’Neil independently studied what the biggest winning stocks looked like just before they ran. Both arrived at a similar picture: a long quiet period of tightening, followed by a decisive break on heavy volume. These four measurements separate a genuine breakout from a trap."}]},
+  {"k":"h3","t":"1. Tight consolidation, a range under about 10 percent"},
+  {"k":"p","r":[{"t":"For several weeks the stock trades in a narrow band instead of swinging wildly. The high to low range of the base is small, ideally under roughly ten percent."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"A kettle coming to the boil goes quiet just before it whistles. Tightness means sellers have stopped dumping stock and buyers are quietly absorbing whatever appears. The disagreement has been settled without a fight."}]]},
+  {"k":"h3","t":"2. Volume drying up during the consolidation"},
+  {"k":"p","r":[{"t":"Volume should fall away as the base forms. This is the most under appreciated of the four."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Low volume in a base means almost nobody left wants to sell at these prices. The weak holders have already gone. When there is no supply left, it takes very little demand to move the price sharply."}]]},
+  {"k":"h3","t":"3. Range expansion on the break"},
+  {"k":"p","r":[{"t":"The breakout day should be visibly wider than the recent quiet days. A stock that has moved 1 percent a day for a month and then moves 6 percent has changed character, and that change is the signal."}]},
+  {"k":"h3","t":"4. A volume spike on the pivot break"},
+  {"k":"p","r":[{"t":"The pivot is the price at the top of the base, the level that must be cleared. When it is cleared, volume should surge well above the recent average, ideally by a wide margin."}]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"This is the single best filter for a false breakout. ","b":1},{"t":"A pivot break on ordinary volume means a handful of orders lifted the price with nobody behind it, and those fail regularly. A pivot break on volume several times the recent average means institutions are buying, and they cannot buy their full position in one day, which is what gives the move follow through."}]]},
+  {"k":"box","kind":"note","label":"Putting the four together","lines":[[{"t":"A textbook setup reads: several weeks of quiet, narrow trading (tight range), on steadily falling volume (dry up), followed by one day that is both much wider than usual (range expansion) and traded on far heavier volume than usual (volume spike), closing above the pivot."}],[{"t":"Entry above the pivot. Stop loss below the low of the base. Target measured by adding the base height to the pivot. If the stock closes back inside the base, the setup has failed and the trade is over, however good the story sounded."}]]},
+  {"k":"h1","t":"Part 5. The Multi Asset Ecosystem"},
+  {"k":"h2","t":"5.1 Futures and Options: Derivatives Without The Jargon"},
+  {"k":"p","r":[{"t":"A derivative is a contract whose value is derived from something else, such as a share or an index. You are not buying the thing. You are buying an agreement about the thing."}]},
+  {"k":"h3","t":"Futures: an agreement to trade later at a price fixed today"},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"You agree in January to buy a flat in June for 50 lakh, and you pay a token amount now to lock the deal. In June you must complete the purchase at 50 lakh, whatever the flat is then worth. If it is worth 60 lakh you have done well. If it is worth 40 lakh you must still pay 50 lakh."}],[{"t":"That token amount is called margin. A futures contract works this way, and the obligation runs in both directions."}]]},
+  {"k":"p","r":[{"t":"The critical part is that the token is small relative to the contract. You might control 10 lakh of exposure with 1.5 lakh of margin. This is leverage."}]},
+  {"k":"h3","t":"Options: paying for a choice, not an obligation"},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"An option is an insurance policy. You pay a small premium for the right to do something later. If you never need it, you lose only the premium. If you do need it, it pays out."}],[{"t":"The buyer of an option is the person taking out insurance: limited, known loss (the premium), with a large possible gain."}],[{"t":"The seller of an option is the insurance company: they collect the premium every time, and in exchange they carry a very large risk on the rare occasion things go badly wrong."}]]},
+  {"k":"p","r":[{"t":"A call option is the right to buy at a set price. A put option is the right to sell at a set price. The price you pay for that right is the premium, and it decays away as the expiry date approaches, which is a cost that works against option buyers every single day."}]},
+  {"k":"h3","t":"Why leverage cuts both ways"},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"With five times leverage, a 20 percent move against you does not cost 20 percent of your capital. It removes all of it."}],[{"t":"Ordinary share investing lets you be wrong and wait. Leveraged positions do not, because losses are settled continuously and a margin call forces you out at the worst moment, often just before the move you predicted actually arrives."}],[{"t":"Indian regulators publish data showing that the large majority of individual traders lose money in derivatives. This is not a warning about being careless. It is the base rate. Learn ordinary investing thoroughly first, and treat derivatives as an advanced subject to approach much later, if at all."}]]},
+  {"k":"h2","t":"5.2 Commodities and Currency"},
+  {"k":"p","r":[{"t":"These are not separate worlds. They feed directly into Indian share prices, as Part 1 explained."}]},
+  {"k":"table","head":[[{"t":"Asset","b":1}],[{"t":"What drives it","b":1}],[{"t":"Its effect on Indian markets","b":1}]],"rows":[[[{"t":"Gold"}],[{"t":"Fear, real interest rates, and the strength of the US dollar"}],[{"t":"Behaves as insurance. It often rises when shares fall, which is why a small allocation smooths the ride."}]],[[{"t":"Silver"}],[{"t":"Both an industrial metal and a store of value"}],[{"t":"More volatile than gold, because industrial demand rises and falls with the economy."}]],[[{"t":"Crude oil"}],[{"t":"Global supply decisions and world growth"}],[{"t":"India imports most of it. Higher crude means a weaker rupee, higher inflation, and pressure on paints, tyres, airlines and logistics."}]],[[{"t":"USD to INR"}],[{"t":"Trade balance, foreign investment flows, and the RBI"}],[{"t":"A weaker rupee helps exporters (software services, pharmaceuticals) and hurts importers and anyone with foreign currency debt."}]]]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Gold is the umbrella you keep in the cupboard. On most days it does nothing at all, and you do not buy it expecting daily returns. You hold it for the day the weather turns, and that is precisely when it earns its place."}]]},
+  {"k":"h2","t":"5.3 Cryptocurrency"},
+  {"k":"p","r":[{"t":"Cryptocurrencies are digital assets recorded on a shared public ledger. It is worth being exact about how they differ from shares, because the two are often discussed as though they were the same activity."}]},
+  {"k":"table","head":[[],[{"t":"A share","b":1}],[{"t":"A cryptocurrency","b":1}]],"rows":[[[{"t":"What you own"}],[{"t":"A legal slice of a real business"}],[{"t":"A digital token, with no claim on any business"}]],[[{"t":"Where value comes from"}],[{"t":"Profits, assets and dividends"}],[{"t":"Only what the next buyer will pay"}]],[[{"t":"Can you value it?"}],[{"t":"Yes, using earnings and cash flow"}],[{"t":"There is no earnings based method. Price is sentiment"}]],[[{"t":"Trading hours"}],[{"t":"Exchange hours on working days"}],[{"t":"All day, every day, including festivals"}]],[[{"t":"Regulation in India"}],[{"t":"SEBI regulated, with investor protection"}],[{"t":"Not regulated as a security. Far less protection"}]],[[{"t":"Indian tax (as things stand)"}],[{"t":"Capital gains rules, losses can be set off"}],[{"t":"Flat 30 percent on gains, 1 percent TDS, and losses cannot be set off against other income"}]]]},
+  {"k":"box","kind":"caution","label":"Careful here","lines":[[{"t":"That tax treatment deserves a second read. Losses in crypto cannot be set off against other gains, which means an active trader can end up paying tax on winning trades while receiving no relief for losing ones. Confirm the current rules before you act, as they change."}],[{"t":"Volatility of 20 to 30 percent in a week is ordinary here, not exceptional. Position sizes should reflect that."}]]},
+  {"k":"h2","t":"5.4 Global Indices and Why Your Morning Starts in New York"},
+  {"k":"p","r":[{"t":"The S&P 500 tracks 500 large American companies. The Nasdaq is more concentrated in technology. Together they set the tone for risk appetite worldwide."}]},
+  {"k":"p","r":[{"t":"The sequence of a typical Indian trading day, in time order:"}]},
+  {"k":"table","head":[[{"t":"Time (India)","b":1}],[{"t":"What is happening","b":1}],[{"t":"Why you care","b":1}]],"rows":[[[{"t":"Previous night"}],[{"t":"US markets trade and close (roughly 2am India time)"}],[{"t":"The largest pool of global capital decides its mood"}]],[[{"t":"Early morning"}],[{"t":"Asian markets open, GIFT Nifty trades"}],[{"t":"GIFT Nifty is an Indian index traded across extended hours. It is the clearest early hint of our opening"}]],[[{"t":"9:15am"}],[{"t":"Nifty 50 and Sensex open"}],[{"t":"Often gapping up or down to match what was already decided overnight"}]],[[{"t":"Through the day"}],[{"t":"Indian news, results and flows take over"}],[{"t":"The overnight cue fades and domestic reality reasserts itself"}]]]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"Global markets are a single large pond with connected channels. When somebody drops a heavy stone in the American end at 2am, the ripple reaches the Indian end by the time you open your app, whether or not anything changed in India."}]]},
+  {"k":"p","r":[{"t":"This is why a strong Indian company can open three percent lower on a day when nothing whatsoever happened to that company. Understanding this prevents a great deal of panic, and stops you selling a good holding because of somebody else’s news."}]},
+  {"k":"h1","t":"Part 6. Before You Place A Single Trade"},
+  {"k":"p","r":[{"t":"Everything so far helps you choose. This part decides whether you are still in the game in five years. It is short, it is unglamorous, and it matters more than every indicator in Part 4 combined."}]},
+  {"k":"h2","t":"6.1 Risk A Fixed, Small Amount"},
+  {"k":"p","r":[{"t":"Decide in advance the most you are willing to lose on any single idea, and make it a small percentage of your total capital, commonly one to two percent."}]},
+  {"k":"box","kind":"analogy","label":"Think of it like this","lines":[[{"t":"If you risk 2 percent per idea, you can be wrong ten times in a row and still have roughly 80 percent of your money, which is easily recoverable. If you risk 25 percent per idea, four mistakes end you."}],[{"t":"Nobody is right ten times out of ten. Plan for being wrong, because you will be."}]]},
+  {"k":"h2","t":"6.2 Write The Stop Loss Before You Enter"},
+  {"k":"p","r":[{"t":"A stop loss is the price at which you accept that the idea was wrong and you leave. Decide it before you buy, when you are calm and have no money at stake."}]},
+  {"k":"ul","items":[[{"t":"Place it where the setup is proved wrong (below the base, below the engulfing candle, below the trendline), not at an amount that merely feels tolerable."}],[{"t":"Give it room using ATR, as Part 4.9 explained. Roughly 1.5 to 3 times ATR keeps ordinary daily noise from knocking you out."}],[{"t":"Then honour it. A stop loss you move away from as price approaches is not a stop loss, it is a wish."}]]},
+  {"k":"h2","t":"6.3 Judge Risk Against Reward, Not Against Hope"},
+  {"k":"p","r":[{"t":"Before entering, compare how much you stand to lose to your stop against how much you reasonably expect to gain to your target."}]},
+  {"k":"box","kind":"rule","label":"The rule to remember","lines":[[{"t":"Below 1 to 1.5 is usually not worth taking. At 1 to 3, you can be right less than half the time and still make money over many trades. Most beginners chase a high strike rate. Professionals chase a favourable ratio, and accept being wrong often."}]]},
+  {"k":"h2","t":"6.4 A Short Checklist Before Any Trade"},
+  {"k":"table","head":[[{"t":"Question","b":1}],[{"t":"If the answer is no","b":1}]],"rows":[[[{"t":"Would I want to own this business if the chart did not exist?"}],[{"t":"Reconsider. A chart is not a reason to own a bad company."}]],[[{"t":"Is ADX above 20, so the market is actually trending?"}],[{"t":"Stand aside. Below 20 the signals are unreliable."}]],[[{"t":"Did volume confirm the breakout or the pattern?"}],[{"t":"Treat it as a likely trap and wait."}]],[[{"t":"Have I written down my stop loss price?"}],[{"t":"Do not enter until you have."}]],[[{"t":"Is my risk to reward at least 1 to 1.5?"}],[{"t":"Skip it. Another opportunity will come."}]],[[{"t":"Is this position small enough that being wrong is survivable?"}],[{"t":"Reduce the size until it is."}]]]},
+  {"k":"h2","t":"6.5 The Honest Summary"},
+  {"k":"p","r":[{"t":"Fundamental analysis tells you what is worth owning. Technical analysis helps you decide when to act. Indicators summarise the chart, and every one of them is describing the past. Risk management is the only part of this document that is fully within your control, and it is the part that determines whether you are still investing in ten years."}]},
+  {"k":"p","r":[{"t":"Learn one indicator properly rather than twelve superficially. Start with ADX, because knowing when to do nothing is worth more than any signal telling you to act."}]},
+  {"k":"box","kind":"caution","label":"Important disclaimer","lines":[[{"t":"This guide is educational material only. It is not investment advice, and it is not a recommendation to buy or sell any security."}],[{"t":"MiyeeStock Buddy and its author are not registered with SEBI as an Investment Adviser or Research Analyst. Company names appear only as familiar illustrations of a concept, never as recommendations."}],[{"t":"Indicators, patterns and ratios describe what has already happened. They do not predict the future. Markets can and do behave in ways no indicator anticipated."}],[{"t":"Every investment decision, and every consequence of it, is yours alone. Please consult a SEBI registered adviser before acting, and never invest money you cannot afford to lose."}]]},
+];
+
+// ── rendering ──────────────────────────────────────────────────────────────
+// The block model above is data, not markup, so every string that reaches the
+// DOM is escaped here rather than trusted. Bold and italic are the only rich
+// formatting the guide uses, and they are re-applied from the run flags.
+function _lnEsc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+function _lnRuns(runs){
+  return (runs || []).map(r => {
+    let h = _lnEsc(r.t);
+    if (r.b) h = '<b>' + h + '</b>';
+    if (r.i) h = '<i>' + h + '</i>';
+    return h;
+  }).join('');
+}
+function _lnText(runs){ return (runs || []).map(r => r.t).join(''); }
+
+// Stable, readable anchors so a heading can be linked to and returned to.
+function _lnSlug(t){
+  return 'ln-' + String(t).toLowerCase()
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);
+}
+
+function _lnBlockHTML(b){
+  switch(b.k){
+    case 'h2': return '<h3 class="ln-h2" id="' + _lnSlug(b.t) + '">' + _lnEsc(b.t) + '</h3>';
+    case 'h3': return '<h4 class="ln-h3">' + _lnEsc(b.t) + '</h4>';
+    case 'p':  return '<p class="ln-p">' + _lnRuns(b.r) + '</p>';
+    case 'ul': return '<ul class="ln-ul">' + b.items.map(it => '<li>' + _lnRuns(it) + '</li>').join('') + '</ul>';
+    case 'box': {
+      const icon = b.kind === 'caution' ? '&#9888;&#65039;'
+                 : b.kind === 'rule'    ? '&#128204;'
+                 : b.kind === 'analogy' ? '&#128161;' : '&#8505;&#65039;';
+      return '<div class="ln-box ln-box-' + b.kind + '">'
+        + (b.label ? '<div class="ln-box-lbl">' + icon + ' ' + _lnEsc(b.label) + '</div>' : '')
+        + b.lines.map(l => '<p>' + _lnRuns(l) + '</p>').join('')
+        + '</div>';
+    }
+    case 'table': {
+      const th = b.head.map(c => '<th>' + _lnRuns(c) + '</th>').join('');
+      const tr = b.rows.map(r => '<tr>' + r.map(c => '<td>' + _lnRuns(c) + '</td>').join('') + '</tr>').join('');
+      return '<div class="ln-tw"><table class="ln-tbl"><thead><tr>' + th + '</tr></thead><tbody>' + tr + '</tbody></table></div>';
+    }
+    default: return '';
+  }
+}
+
+// Group the flat block list into parts (h1) and, inside each, groups (h2).
+// Grouping is what makes both the contents rail and the search filter possible:
+// a search hides whole groups rather than orphaning a heading from its body.
+function _lnGroup(blocks){
+  const parts = [];
+  let part = null, grp = null;
+  const newGrp = (title) => { grp = { title, id: title ? _lnSlug(title) : null, blocks: [] }; part.groups.push(grp); };
+  for (const b of blocks){
+    if (b.k === 'h1'){
+      part = { title: b.t, id: _lnSlug(b.t), groups: [] };
+      parts.push(part);
+      newGrp(null);
+      continue;
+    }
+    if (!part){ part = { title: null, id: 'ln-intro', groups: [] }; parts.push(part); newGrp(null); }
+    if (b.k === 'h2'){ newGrp(b.t); continue; }
+    grp.blocks.push(b);
+  }
+  return parts;
+}
+
+let _lnParts = null;
+
+function renderLearn(){
+  const body = document.getElementById('learn-body');
+  const toc  = document.getElementById('learn-toc');
+  if (!body || body.dataset.done === '1') return;
+  _lnParts = _lnGroup(LEARN_BLOCKS);
+
+  const secs = [], links = [];
+  _lnParts.forEach((part, pi) => {
+    const inner = part.groups.map(g => {
+      const head = g.title ? '<h3 class="ln-h2" id="' + g.id + '">' + _lnEsc(g.title) + '</h3>' : '';
+      const inner2 = g.blocks.map(_lnBlockHTML).join('');
+      const hay = ((g.title || '') + ' ' + g.blocks.map(b =>
+        b.k === 'table' ? b.head.concat(...b.rows).map(_lnText).join(' ')
+        : b.k === 'ul'  ? b.items.map(_lnText).join(' ')
+        : b.k === 'box' ? (b.label || '') + ' ' + b.lines.map(_lnText).join(' ')
+        : b.t || _lnText(b.r)).join(' ')).toLowerCase();
+      return '<div class="ln-grp" data-hay="' + _lnEsc(hay) + '">' + head + inner2 + '</div>';
+    }).join('');
+    secs.push('<section class="ln-part" data-part="' + pi + '">'
+      + (part.title ? '<h2 class="ln-h1" id="' + part.id + '">' + _lnEsc(part.title) + '</h2>' : '')
+      + inner + '</section>');
+    if (!part.title) return;
+    links.push('<a class="ln-toc-a" href="#' + part.id + '" onclick="return learnGoto(\'' + part.id + '\')">' + _lnEsc(part.title) + '</a>'
+      + part.groups.filter(g => g.title).map(g =>
+          '<a class="ln-toc-b" href="#' + g.id + '" onclick="return learnGoto(\'' + g.id + '\')">' + _lnEsc(g.title) + '</a>').join(''));
+  });
+  body.innerHTML = secs.join('');
+  if (toc) toc.innerHTML = links.join('');
+  body.dataset.done = '1';
+  // Open on desktop, where the rail is the sticky contents column; folded on a
+  // phone, where an unfolded one costs a screenful before the guide begins.
+  const rail = document.getElementById('learn-rail');
+  if (rail) rail.open = !(typeof window !== 'undefined' && window.innerWidth && window.innerWidth <= 940);
+  _lnObserve();
+}
+
+// Highlight the contents entry for whatever is currently on screen.
+function _lnObserve(){
+  if (typeof IntersectionObserver !== 'function') return;
+  const heads = document.querySelectorAll('#learn-body .ln-h1, #learn-body .ln-h2');
+  if (!heads.length) return;
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      document.querySelectorAll('#learn-toc a.on').forEach(a => a.classList.remove('on'));
+      const a = document.querySelector('#learn-toc a[href="#' + e.target.id + '"]');
+      if (a){ a.classList.add('on'); }
+    });
+  }, { rootMargin: '-70px 0px -75% 0px', threshold: 0 });
+  heads.forEach(h => io.observe(h));
+}
+
+function learnGoto(id){
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  return false;
+}
+
+// Plain substring search over the pre-built haystack of each group. It hides
+// rather than rebuilds, so scroll anchors and the contents rail stay valid.
+function learnSearch(q){
+  const term = String(q || '').trim().toLowerCase();
+  const grps = document.querySelectorAll('#learn-body .ln-grp');
+  let hits = 0;
+  grps.forEach(g => {
+    const show = !term || (g.dataset.hay || '').indexOf(term) >= 0;
+    g.style.display = show ? '' : 'none';
+    if (show && term) hits++;
+  });
+  document.querySelectorAll('#learn-body .ln-part').forEach(p => {
+    const any = [...p.querySelectorAll('.ln-grp')].some(g => g.style.display !== 'none');
+    p.style.display = any ? '' : 'none';
+  });
+  const note = document.getElementById('learn-searchnote');
+  if (note){
+    note.textContent = !term ? '' : hits ? (hits + ' section' + (hits === 1 ? '' : 's') + ' match "' + term + '"')
+                                        : 'Nothing matches "' + term + '". Try a shorter word, for example "ADX" or "stop".';
+    note.style.display = term ? 'block' : 'none';
+  }
+}
+
+function learnClearSearch(){
+  const i = document.getElementById('learn-search');
+  if (i) i.value = '';
+  learnSearch('');
+  if (i) i.focus();
+}
+</script>
 
 <div id="tz"></div>
 
@@ -17754,24 +18310,21 @@ function switchApp(app) {
     var cb = document.getElementById('launch-remember');
     if (cb) { if (cb.checked) localStorage.setItem('launchSkip', app); else localStorage.removeItem('launchSkip'); }
   } catch(e) {}
-  var sA = document.getElementById('section-analyser');
-  var sP = document.getElementById('section-portfolio');
-  var bA = document.getElementById('btn-analyser');
-  var bP = document.getElementById('btn-portfolio');
+  var panes = { analyser:'section-analyser', portfolio:'section-portfolio', learn:'section-learn' };
+  var btns  = { analyser:'btn-analyser',     portfolio:'btn-portfolio',     learn:'btn-learn' };
+  if (!panes[app]) app = 'analyser';
   var activeStyle  = 'padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s;background:linear-gradient(135deg,#006aff,#0052cc);color:#fff;';
   var inactiveStyle= 'padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);';
-  if (app === 'analyser') {
-    sA.style.display = 'block';
-    sP.style.display = 'none';
-    if (bA) bA.style.cssText = activeStyle;
-    if (bP) bP.style.cssText = inactiveStyle;
-  } else {
-    sA.style.display = 'none';
-    sP.style.display = 'block';
-    if (bA) bA.style.cssText = inactiveStyle;
-    if (bP) bP.style.cssText = activeStyle;
-    if (typeof renderPmAuthGate === 'function') renderPmAuthGate();
-  }
+  Object.keys(panes).forEach(function(k){
+    var pane = document.getElementById(panes[k]);
+    if (pane) pane.style.display = (k === app) ? 'block' : 'none';
+    var btn = document.getElementById(btns[k]);
+    if (btn) btn.style.cssText = (k === app) ? activeStyle : inactiveStyle;
+  });
+  if (app === 'portfolio' && typeof renderPmAuthGate === 'function') renderPmAuthGate();
+  // The guide is built on first open, then reused. renderLearn() is a no-op
+  // once the body is populated, so repeat visits cost nothing.
+  if (app === 'learn' && typeof renderLearn === 'function') renderLearn();
   try { localStorage.setItem('advStockApp', app); } catch(e) {}
 }
 
@@ -17819,7 +18372,7 @@ function addToPortfolioFromAnalysis() {
 (function() {
   try {
     var skip = localStorage.getItem('launchSkip');
-    if (skip === 'portfolio' || skip === 'analyser') { switchApp(skip); return; }
+    if (skip === 'portfolio' || skip === 'analyser' || skip === 'learn') { switchApp(skip); return; }
     showLauncher();
   } catch(e) { try { showLauncher(); } catch(_) {} }
 })();

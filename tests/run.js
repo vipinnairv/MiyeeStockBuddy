@@ -3892,6 +3892,145 @@ group('signal scanner');
 // the entire suite, because nothing here had ever parsed the page as a whole.
 // The build concatenates text; it does not compile it. A browser would have
 // failed to run the app at all.
+
+// ── The Learn Academy ──────────────────────────────────────────────────────
+// The guide is content, and content rots quietly: a dash slips in, a table
+// row loses a column, a threshold drifts away from what the app computes.
+// None of that throws, so it has to be asserted.
+group('learn academy — content integrity');
+{
+  const src = slice('const LEARN_BLOCKS = [', '\n</script>', 'learn');
+  const { LEARN_BLOCKS } = load(src.replace(/^const /gm, 'var '), ['LEARN_BLOCKS']);
+
+  ok('the guide has substantial content', LEARN_BLOCKS.length > 150, `only ${LEARN_BLOCKS.length} blocks`);
+
+  const KINDS = new Set(['h1','h2','h3','p','ul','box','table']);
+  const badKind = LEARN_BLOCKS.filter(b => !KINDS.has(b.k)).map(b => b.k);
+  eq('every block has a kind the renderer knows', badKind.join(','), '');
+
+  const BOXES = new Set(['analogy','rule','caution','note']);
+  const badBox = LEARN_BLOCKS.filter(b => b.k === 'box' && !BOXES.has(b.kind)).map(b => b.kind);
+  eq('every callout has a kind the renderer styles', badBox.join(','), '');
+
+  // Flatten every string the reader can ever see.
+  const runText = rs => (rs || []).map(r => r.t).join(' ');
+  const all = LEARN_BLOCKS.map(b =>
+      b.k === 'table' ? b.head.concat(...b.rows).map(runText).join(' ')
+    : b.k === 'ul'    ? b.items.map(runText).join(' ')
+    : b.k === 'box'   ? (b.label || '') + ' ' + b.lines.map(runText).join(' ')
+    : b.t != null     ? b.t : runText(b.r)).join(' \n');
+
+  // The brief was explicit: no em dashes. En dash and the Unicode minus read
+  // as the same typographic slip on screen, so they are barred too.
+  eq('no em dashes anywhere in the guide', all.indexOf('—'), -1);
+  eq('no en dashes anywhere in the guide', all.indexOf('–'), -1);
+  eq('no Unicode minus anywhere in the guide', all.indexOf('−'), -1);
+
+  // Every run must carry text; an empty run renders as a gap the reader sees.
+  const emptyRuns = LEARN_BLOCKS.filter(b => b.k === 'p' && (!b.r || !b.r.length)).length;
+  eq('no empty paragraphs', emptyRuns, 0);
+
+  // A table whose row is shorter than its header silently drops a cell.
+  const ragged = LEARN_BLOCKS.filter(b => b.k === 'table')
+    .filter(b => b.rows.some(r => r.length !== b.head.length)).length;
+  eq('every table row matches its header width', ragged, 0);
+
+  const parts = LEARN_BLOCKS.filter(b => b.k === 'h1').map(b => b.t);
+  eq('all six parts plus the contents are present', parts.length, 7);
+  ok('parts are numbered in order', parts.slice(1).every((t, i) => t.indexOf(`Part ${i + 1}.`) === 0),
+     parts.join(' | '));
+
+  // The guide teaches the numbers the app actually computes. If a threshold is
+  // ever retuned in the signal engine, this is where the mismatch surfaces.
+  const has = t => all.indexOf(t) >= 0;
+  ok('teaches the ADX < 20 hold rule', has('Below 20') && has('choppy'), 'ADX rule missing');
+  ok('teaches ADX above 25 as a real trend', has('Above 25'), 'ADX 25 missing');
+  ok('teaches RSI 70 / 30', has('Above 70') && has('Below 30'), 'RSI bands missing');
+  ok('teaches the 1.5 to 3 ATR stop', has('1.5 to 3'), 'ATR stop multiple missing');
+  ok('teaches MFI 80 / 20', has('Above 80') && has('Below 20'), 'MFI bands missing');
+  ok('teaches the 1 to 1.5 risk and reward floor', has('1 to 1.5'), 'R:R floor missing');
+  ok('says plainly that indicators do not predict', has('do not predict'), 'no such caveat');
+  ok('carries the not-advice disclaimer', has('not investment advice'), 'disclaimer missing');
+  ok('names SEBI registration status', has('SEBI'), 'SEBI note missing');
+}
+
+group('learn academy — rendering');
+{
+  let JSDOM = null;
+  try { ({ JSDOM } = require('jsdom')); } catch (e) {}
+  if (!JSDOM) {
+    results.push(['SKIP', 'learn academy DOM tests (install jsdom to enable)', '']);
+  } else {
+    const src = slice('const LEARN_BLOCKS = [', '\n</script>', 'learn');
+    const dom = new JSDOM(`<div id="learn-toc"></div><input id="learn-search">
+      <div id="learn-searchnote"></div><div id="learn-body"></div>`);
+    const doc = dom.window.document;
+    const api = load(src.replace(/^const /gm, 'var ').replace(/^let /gm, 'var '),
+      ['LEARN_BLOCKS','renderLearn','learnSearch','learnClearSearch','_lnEsc','_lnRuns','_lnSlug'],
+      { document: doc, window: dom.window });
+
+    // Escaping first: the block model is data, and data must never become markup.
+    eq('angle brackets are escaped', api._lnEsc('<script>x</script>'),
+       '&lt;script&gt;x&lt;/script&gt;');
+    eq('ampersands and quotes are escaped', api._lnEsc('a & "b"'), 'a &amp; &quot;b&quot;');
+    eq('a hostile run cannot inject a tag',
+       api._lnRuns([{ t: '<img onerror=alert(1)>', b: 1 }]),
+       '<b>&lt;img onerror=alert(1)&gt;</b>');
+
+    api.renderLearn();
+    const body = doc.getElementById('learn-body');
+    const toc  = doc.getElementById('learn-toc');
+    ok('the guide renders into the page', body.innerHTML.length > 20000, `only ${body.innerHTML.length} chars`);
+    eq('one titled section per part', body.querySelectorAll('.ln-part > h2.ln-h1').length, 7);
+    // The "Read this first" note sits before Part 1 and belongs to no part, so
+    // it gets an untitled section of its own rather than being swallowed.
+    eq('the opening note keeps its own untitled section',
+       body.querySelectorAll('.ln-part').length, 8);
+    ok('and it is the first thing the reader sees',
+       body.querySelector('.ln-part').textContent.indexOf('This guide assumes you know nothing') >= 0,
+       body.querySelector('.ln-part').textContent.slice(0, 60));
+    ok('the contents rail is populated', toc.querySelectorAll('a').length > 25,
+       `only ${toc.querySelectorAll('a').length} links`);
+
+    // Every contents link must land somewhere. A dead anchor is invisible in
+    // review and obvious to the reader.
+    const dead = [...toc.querySelectorAll('a')]
+      .map(a => a.getAttribute('href').slice(1))
+      .filter(id => !doc.getElementById(id));
+    eq('every contents link resolves to a heading', dead.join(','), '');
+
+    const ids = [...body.querySelectorAll('[id]')].map(e => e.id);
+    eq('heading anchors are unique', ids.length, new Set(ids).size);
+
+    const n = body.querySelectorAll('.ln-grp').length;
+    api.renderLearn();
+    eq('re-rendering is idempotent', body.querySelectorAll('.ln-grp').length, n);
+
+    // Search hides whole groups so a heading never outlives its body.
+    api.learnSearch('adx');
+    const shown = [...body.querySelectorAll('.ln-grp')].filter(g => g.style.display !== 'none');
+    ok('searching narrows the guide', shown.length > 0 && shown.length < n,
+       `${shown.length} of ${n} shown`);
+    ok('the ADX section survives an ADX search',
+       shown.some(g => (g.textContent || '').indexOf('ADX') >= 0), 'ADX group hidden');
+    ok('a part with no surviving group is hidden',
+       [...body.querySelectorAll('.ln-part')].some(p => p.style.display === 'none'),
+       'every part still shown');
+
+    api.learnSearch('zzzznotathing');
+    eq('a search with no hits hides everything',
+       [...body.querySelectorAll('.ln-grp')].filter(g => g.style.display !== 'none').length, 0);
+    ok('and says so rather than showing a blank page',
+       doc.getElementById('learn-searchnote').textContent.indexOf('Nothing matches') === 0,
+       doc.getElementById('learn-searchnote').textContent);
+
+    api.learnClearSearch();
+    eq('clearing the search restores every group',
+       [...body.querySelectorAll('.ln-grp')].filter(g => g.style.display !== 'none').length, n);
+    eq('and empties the search box', doc.getElementById('learn-search').value, '');
+  }
+}
+
 group('shipped page parses');
 {
   const re = /<script(?![^>]*type=["']module["'])[^>]*>([\s\S]*?)<\/script>/g;

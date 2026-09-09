@@ -1401,10 +1401,10 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
 @media(max-width:540px){
   #app-switcher { padding:0 8px; height:40px; }
   .as-brand-text { display:none; }
-  #btn-analyser,#btn-portfolio { padding:5px 8px !important; font-size:11px !important; }
+  #btn-analyser,#btn-portfolio,#btn-learn { padding:5px 8px !important; font-size:11px !important; }
 }
 @media(max-width:380px){
-  #btn-analyser span,#btn-portfolio span { display:none; }
+  #btn-analyser span,#btn-portfolio span,#btn-learn span { display:none; }
 }
 /* Live Lookup fetch row - stack so the Fetch button is never squeezed off-screen */
 @media(max-width:640px){
@@ -1423,6 +1423,131 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   .disc-title { font-size:26px; }
   .disc-actions { flex-direction:column; align-items:stretch; }
   .disc-btn-accept,.disc-btn-decline { text-align:center; }
+}
+/* ═══════════ THE LEARN ACADEMY ═══════════
+   Cyberblue: deep navy headings, cyber-blue accents, charcoal body on white.
+   Every rule is scoped to #section-learn on purpose. The Analyser's tokens are
+   dark-only and the Portfolio Manager's are light/dark aware, so a bare class
+   here would inherit whichever half happened to load, which is exactly the
+   collision that produced unreadable panels before. This section owns its own
+   palette and borrows nothing. */
+#section-learn{
+  --ln-navy:#0A2540; --ln-navy2:#13395E; --ln-cyber:#00B4D8; --ln-cyberd:#0077B6;
+  --ln-char:#2D3748; --ln-muted:#5A6B7B; --ln-wash:#E8F6FB; --ln-rule:#CBD9E3;
+  --ln-warm:#FFF4E5; --ln-warmbd:#D98324; --ln-warmtx:#8A5200;
+  --ln-page:#FFFFFF; --ln-zebra:#F4FAFD;
+  background:var(--ln-page); color:var(--ln-char);
+  font-family:Verdana,Geneva,"DejaVu Sans",sans-serif;
+  min-height:calc(100vh - 44px);
+}
+[data-theme="dark"] #section-learn{
+  --ln-navy:#CFE9F5; --ln-navy2:#A8D8EC; --ln-cyber:#00B4D8; --ln-cyberd:#4CC9F0;
+  --ln-char:#DCE6ED; --ln-muted:#93A6B4; --ln-wash:#0E2836; --ln-rule:#25455A;
+  --ln-warm:#3A2A12; --ln-warmbd:#D98324; --ln-warmtx:#F0C48A;
+  --ln-page:#0B1620; --ln-zebra:#101E2A;
+}
+#section-learn *{box-sizing:border-box}
+.ln-hero{background:linear-gradient(135deg,#0A2540 0%,#13395E 55%,#0077B6 100%);
+  color:#fff;padding:38px 22px 34px;text-align:center;}
+.ln-hero-kick{font-size:11px;font-weight:700;letter-spacing:2.4px;color:#7FDBF0;text-transform:uppercase;}
+.ln-hero-ttl{font-size:32px;font-weight:900;letter-spacing:-.5px;margin:10px 0 8px;}
+.ln-hero-sub{font-size:13.5px;color:rgba(255,255,255,.78);max-width:600px;margin:0 auto;line-height:1.65;}
+.ln-hero-rule{width:78px;height:3px;background:#00B4D8;border-radius:2px;margin:18px auto 0;}
+@media(max-width:600px){ .ln-hero{padding:26px 16px} .ln-hero-ttl{font-size:24px} }
+
+.ln-wrap{max-width:1180px;margin:0 auto;padding:22px 20px 70px;
+  display:grid;grid-template-columns:255px minmax(0,1fr);gap:30px;align-items:start;}
+/* Grid items default to min-width:auto, so the guide's widest table (which
+   declares a 460px minimum before it starts scrolling in its own wrapper)
+   pushed the whole column past the edge of a phone screen. The track was the
+   right size; the item was not made to respect it. */
+.ln-wrap > *{min-width:0;max-width:100%;}
+@media(max-width:940px){ .ln-wrap{grid-template-columns:minmax(0,1fr);gap:16px;padding:16px 14px 50px} }
+
+.ln-rail{position:sticky;top:60px;max-height:calc(100vh - 80px);overflow-y:auto;
+  border-right:1px solid var(--ln-rule);padding-right:12px;}
+@media(max-width:940px){ .ln-rail{position:static;max-height:270px;border-right:none;
+  border:1px solid var(--ln-rule);border-radius:10px;padding:10px 12px} }
+/* body carries overflow-x:hidden app-wide (it stops horizontal drift on
+   mobile), which makes body a scroll container the page never scrolls. A
+   position:sticky rail measured against it therefore never sticks. Rather than
+   loosen that global rule and risk the other two apps, the guide scrolls
+   inside its own pane on wide screens, which gives the rail a scrollport that
+   actually moves. Narrow screens keep ordinary page scrolling, where the rail
+   is static anyway. */
+@media(min-width:941px){
+  #section-learn{height:calc(100vh - 44px);overflow-y:auto;}
+  .ln-rail{top:14px;max-height:calc(100vh - 74px);}
+}
+.ln-rail-h{font-size:10.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--ln-cyberd);margin-bottom:10px;cursor:pointer;}
+@media(min-width:941px){
+  /* On desktop the rail is always open, so the disclosure triangle would only
+     invite the reader to collapse their own contents. */
+  .ln-rail > summary{list-style:none;cursor:default;}
+  .ln-rail > summary::-webkit-details-marker{display:none;}
+}
+#learn-toc a{display:block;text-decoration:none;line-height:1.4;border-left:2px solid transparent;}
+a.ln-toc-a{font-size:12.5px;font-weight:700;color:var(--ln-navy);padding:8px 0 5px 10px;margin-top:6px;}
+a.ln-toc-b{font-size:11.5px;color:var(--ln-muted);padding:4px 0 4px 18px;}
+#learn-toc a:hover{color:var(--ln-cyberd);border-left-color:var(--ln-cyber);}
+#learn-toc a.on{color:var(--ln-cyberd);font-weight:700;border-left-color:var(--ln-cyber);
+  background:var(--ln-wash);border-radius:0 6px 6px 0;}
+
+.ln-search{display:flex;gap:8px;margin-bottom:14px;}
+.ln-search input{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--ln-rule);
+  border-radius:8px;font:inherit;font-size:12.5px;background:var(--ln-page);color:var(--ln-char);}
+.ln-search input:focus{outline:none;border-color:var(--ln-cyber);box-shadow:0 0 0 3px rgba(0,180,216,.18);}
+.ln-search button{padding:9px 13px;border:1px solid var(--ln-rule);background:var(--ln-page);
+  color:var(--ln-muted);border-radius:8px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.ln-search button:hover{border-color:var(--ln-cyber);color:var(--ln-cyberd);}
+#learn-searchnote{display:none;font-size:11.5px;color:var(--ln-muted);margin:-6px 0 14px;}
+
+#learn-body h2.ln-h1{font-size:22px;font-weight:900;color:var(--ln-navy);letter-spacing:-.3px;
+  margin:34px 0 16px;padding-bottom:9px;border-bottom:2.5px solid var(--ln-cyber);scroll-margin-top:64px;}
+#learn-body .ln-part:first-child h2.ln-h1{margin-top:4px;}
+#learn-body h3.ln-h2{font-size:16.5px;font-weight:800;color:var(--ln-navy2);
+  margin:26px 0 10px;scroll-margin-top:64px;}
+#learn-body h4.ln-h3{font-size:13.5px;font-weight:800;color:var(--ln-cyberd);margin:18px 0 7px;}
+#learn-body p.ln-p{font-size:13px;line-height:1.75;margin:0 0 11px;color:var(--ln-char);}
+#learn-body ul.ln-ul{margin:0 0 12px;padding-left:20px;}
+#learn-body ul.ln-ul li{font-size:13px;line-height:1.7;margin-bottom:6px;color:var(--ln-char);}
+#learn-body b{color:var(--ln-navy2);font-weight:700;}
+/* Table headers are white on navy, and several of them are bold runs. Without
+   this the rule above repaints that bold text --ln-navy2, which is navy on
+   navy: computed colour on the cell still reads white, so the cell looks fine
+   in devtools and is unreadable on screen. Bold inside a header inherits. */
+#learn-body table.ln-tbl th b{color:inherit;}
+
+.ln-box{border-left:4px solid var(--ln-cyber);background:var(--ln-wash);
+  border-radius:0 10px 10px 0;padding:13px 16px;margin:14px 0 16px;}
+.ln-box p{font-size:12.5px;line-height:1.7;margin:0 0 8px;color:var(--ln-char);}
+.ln-box p:last-child{margin-bottom:0;}
+.ln-box-lbl{font-size:10.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;
+  color:var(--ln-cyberd);margin-bottom:7px;}
+.ln-box-rule{border-left-color:var(--ln-cyberd);}
+.ln-box-caution{border-left-color:var(--ln-warmbd);background:var(--ln-warm);}
+.ln-box-caution .ln-box-lbl{color:var(--ln-warmtx);}
+
+.ln-tw{overflow-x:auto;margin:14px 0 18px;-webkit-overflow-scrolling:touch;}
+table.ln-tbl{border-collapse:collapse;width:100%;min-width:460px;}
+table.ln-tbl th{background:var(--ln-navy);color:#fff;font-size:11.5px;font-weight:700;
+  text-align:left;padding:9px 11px;border:1px solid var(--ln-rule);}
+[data-theme="dark"] table.ln-tbl th{background:#12303F;color:#EAF6FC;}
+table.ln-tbl td{font-size:12px;line-height:1.6;padding:9px 11px;
+  border:1px solid var(--ln-rule);vertical-align:top;color:var(--ln-char);}
+table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
+
+@media print{
+  #app-switcher,.ln-rail,.ln-search,#learn-searchnote,.ln-hero-rule{display:none !important;}
+  #section-learn{height:auto !important;overflow:visible !important;}
+  .ln-wrap{display:block;max-width:none;padding:0;}
+  .ln-hero{background:none;color:#000;padding:0 0 16px;text-align:left;}
+  .ln-hero-kick,.ln-hero-sub{color:#444;}
+  .ln-hero-ttl{color:#0A2540;}
+  #learn-body h2.ln-h1{break-before:page;}
+  #learn-body .ln-part:first-child h2.ln-h1{break-before:auto;}
+  .ln-box,.ln-tw,#learn-body h3.ln-h2{break-inside:avoid;}
 }
 /* Portfolio manager sticky offset when switcher is visible */
 #section-portfolio #nav-wrap { top:44px; }
@@ -1460,6 +1585,7 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   <div style="display:flex;gap:6px;">
     <button id="btn-analyser" onclick="switchApp('analyser')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s;background:linear-gradient(135deg,#006aff,#0052cc);color:#fff;">&#128269; <span>Stock Analyser</span></button>
     <button id="btn-portfolio" onclick="switchApp('portfolio')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128188; <span>Portfolio Manager</span></button>
+    <button id="btn-learn" onclick="switchApp('learn')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128218; <span>Learn</span></button>
   </div>
 </div>
 <div style="height:44px;flex-shrink:0;"></div>
@@ -1471,7 +1597,7 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
     <div style="text-align:center;margin-bottom:38px;">
       <div style="font-size:52px;margin-bottom:12px;">📊</div>
       <div style="font-size:34px;font-weight:900;letter-spacing:-.6px;background:linear-gradient(135deg,#006aff,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;">Welcome to MiyeeStock Buddy</div>
-      <div style="font-size:14.5px;color:var(--text2,#5b6b7f);max-width:520px;margin:0 auto;line-height:1.6;">What would you like to do? You can switch between the two at any time from the header.</div>
+      <div style="font-size:14.5px;color:var(--text2,#5b6b7f);max-width:520px;margin:0 auto;line-height:1.6;">What would you like to do? You can switch between them at any time from the header.</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;">
       <button onclick="switchApp('analyser')" class="launch-card" style="--lc:#006aff">
@@ -1485,6 +1611,12 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
         <div class="launch-ttl">Portfolio Manager</div>
         <div class="launch-sub">Track everything you own: equity, crypto, mutual funds and FDs, with live P&amp;L, XIRR, income and taxation.</div>
         <div class="launch-go">Open my portfolio →</div>
+      </button>
+      <button onclick="switchApp('learn')" class="launch-card" style="--lc:#00B4D8">
+        <div class="launch-ico">📚</div>
+        <div class="launch-ttl">Learn Academy</div>
+        <div class="launch-sub">Start from zero: how markets work, how to read a balance sheet and a candlestick, and what every indicator in this app actually means.</div>
+        <div class="launch-go">Open the guide →</div>
       </button>
     </div>
     <label style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:26px;font-size:12.5px;color:var(--text3,#7b8794);cursor:pointer;">
@@ -3135,6 +3267,38 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
 </div>
 </div>
 </div>
+
+<!-- ══════════ THE LEARN ACADEMY ══════════
+     A third top-level app alongside the Analyser and the Portfolio Manager.
+     The guide itself lives in src/js/learn.js as data, and is rendered on
+     first open rather than at boot: it is a large block list, and paying for
+     it up front would slow the two apps most people actually came for. -->
+<div id="section-learn" style="display:none">
+  <div class="ln-hero">
+    <div class="ln-hero-kick">MiyeeStock Buddy</div>
+    <div class="ln-hero-ttl">The Learn Academy</div>
+    <div class="ln-hero-sub">A complete beginner&#39;s guide to trading and investing in India. It assumes you know nothing, explains every term the moment it appears, and gives you an everyday comparison for each one so it sticks.</div>
+    <div class="ln-hero-rule"></div>
+  </div>
+  <div class="ln-wrap">
+    <details class="ln-rail" id="learn-rail">
+      <summary class="ln-rail-h">Contents</summary>
+      <nav id="learn-toc"></nav>
+    </details>
+    <main>
+      <div class="ln-search">
+        <input id="learn-search" type="search" placeholder="Search the guide, for example ADX, stop loss, P/E" oninput="learnSearch(this.value)" aria-label="Search the guide" />
+        <button type="button" onclick="learnClearSearch()">Clear</button>
+        <button type="button" onclick="window.print()" title="Print the guide or save it as a PDF">Print</button>
+      </div>
+      <div id="learn-searchnote" role="status"></div>
+      <div id="learn-body"></div>
+    </main>
+  </div>
+</div>
+<script>
+// @include js/learn.js
+</script>
 
 <div id="tz"></div>
 
@@ -13364,24 +13528,21 @@ function switchApp(app) {
     var cb = document.getElementById('launch-remember');
     if (cb) { if (cb.checked) localStorage.setItem('launchSkip', app); else localStorage.removeItem('launchSkip'); }
   } catch(e) {}
-  var sA = document.getElementById('section-analyser');
-  var sP = document.getElementById('section-portfolio');
-  var bA = document.getElementById('btn-analyser');
-  var bP = document.getElementById('btn-portfolio');
+  var panes = { analyser:'section-analyser', portfolio:'section-portfolio', learn:'section-learn' };
+  var btns  = { analyser:'btn-analyser',     portfolio:'btn-portfolio',     learn:'btn-learn' };
+  if (!panes[app]) app = 'analyser';
   var activeStyle  = 'padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s;background:linear-gradient(135deg,#006aff,#0052cc);color:#fff;';
   var inactiveStyle= 'padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);';
-  if (app === 'analyser') {
-    sA.style.display = 'block';
-    sP.style.display = 'none';
-    if (bA) bA.style.cssText = activeStyle;
-    if (bP) bP.style.cssText = inactiveStyle;
-  } else {
-    sA.style.display = 'none';
-    sP.style.display = 'block';
-    if (bA) bA.style.cssText = inactiveStyle;
-    if (bP) bP.style.cssText = activeStyle;
-    if (typeof renderPmAuthGate === 'function') renderPmAuthGate();
-  }
+  Object.keys(panes).forEach(function(k){
+    var pane = document.getElementById(panes[k]);
+    if (pane) pane.style.display = (k === app) ? 'block' : 'none';
+    var btn = document.getElementById(btns[k]);
+    if (btn) btn.style.cssText = (k === app) ? activeStyle : inactiveStyle;
+  });
+  if (app === 'portfolio' && typeof renderPmAuthGate === 'function') renderPmAuthGate();
+  // The guide is built on first open, then reused. renderLearn() is a no-op
+  // once the body is populated, so repeat visits cost nothing.
+  if (app === 'learn' && typeof renderLearn === 'function') renderLearn();
   try { localStorage.setItem('advStockApp', app); } catch(e) {}
 }
 
@@ -13429,7 +13590,7 @@ function addToPortfolioFromAnalysis() {
 (function() {
   try {
     var skip = localStorage.getItem('launchSkip');
-    if (skip === 'portfolio' || skip === 'analyser') { switchApp(skip); return; }
+    if (skip === 'portfolio' || skip === 'analyser' || skip === 'learn') { switchApp(skip); return; }
     showLauncher();
   } catch(e) { try { showLauncher(); } catch(_) {} }
 })();
