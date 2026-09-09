@@ -79,6 +79,19 @@ function get(url) {
 
 const readLocal = p => fs.readFileSync(path.resolve(p), 'utf8');
 
+// BSE publishes names in capitals with clipped punctuation - "J.B.CHEMICALS &
+// PHARMACEUTICAL", "HINDUSTAN MOTORS LTD." - while every row already on the
+// list is in title case. Left as-is they stand out in the dropdown as shouting.
+function titleCase(name) {
+  return String(name).trim().replace(/\s+/g, ' ')
+    .replace(/[A-Za-z0-9]+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .replace(/\b(\d+)([a-z])\b/g, (m, d, c) => d + c.toUpperCase())
+    // BSE clips the name field at 30 characters, so a good many arrive as
+    // "Oriental Carbon & Chemicals Lt". Only the suffix can be repaired.
+    .replace(/\s(Lt|Ltd\.|Li|Lim|Limi|Limit|Limite|Limited)$/, ' Ltd')
+    .replace(/\bLtd\.$/, 'Ltd');
+}
+
 // ── source readers ─────────────────────────────────────────────────────────
 // [{ name, nse, isin, sme }] from an NSE listing file. Handles both the main
 // board (EQUITY_L.csv) and the SME board (SME_EQUITY_L.csv), which publish the
@@ -145,8 +158,11 @@ function readBSE(text) {
 
 // ── merge ──────────────────────────────────────────────────────────────────
 // Row shape: [name, nseSymbol, bseSymbol, bseCode, isin] with an optional
-// sixth element 'SME' for NSE Emerge listings. The sixth is additive, so
-// everything that reads indexes 0 to 4 is unaffected.
+// sixth element marking the board: 'SME' for an NSE Emerge listing, 'BSE' for
+// a company listed on BSE and not on NSE. The sixth is additive, so everything
+// that reads indexes 0 to 4 is unaffected. On a 'BSE' row both symbol slots
+// hold BSE's ticker, because field 1 is what the app looks up; the marker is
+// what tells it to append .BO instead of .NS.
 function merge(existing, nse, bse) {
   const byIsin = new Map();
   const bySym = new Map();
@@ -212,24 +228,74 @@ function merge(existing, nse, bse) {
   for (const r of existing) {
     if (seen.has(r[1])) continue;
     const now = keptNames.get(norm(r[0]));
+    // A company that has appeared on NSE under a new symbol supersedes its old
+    // row, including a BSE-primary one: the NSE listing is the better identity.
     if (now && now !== r[1]) superseded.push({ old: r[1], now, name: r[0] });
     else orphans.push(r);
   }
   const supersededSyms = new Set(superseded.map(s2 => s2.old));
   const rows = existing.filter(r => !supersededSyms.has(r[1]));
 
-  // Everything else the NSE file no longer lists is reported, never deleted
-  // here: a truncated download would otherwise wipe companies out with no way
-  // back, and a name may still be listed on BSE.
-  // BSE scrips that matched nothing: BSE-only companies, plus names BSE still
-  // lists under a ticker NSE has since retired. Reported, not added: a BSE-only
-  // row would carry a BSE ticker in the NSE slot and resolve to a .NS symbol
-  // that does not exist.
+  // ── companies NSE no longer lists ──────────────────────────────────────
+  // Never deleted here: a truncated download would otherwise wipe companies
+  // out with no way back. Where BSE still lists one, it is not gone at all,
+  // only gone from NSE, so it becomes a BSE-primary row and stays reachable.
+  // Gujarat State Petronet, Cigniti and JB Chemicals are all in that position.
+  const movedToBse = [];
+  const stillGone = [];
+  for (const r of orphans) {
+    // With no BSE file to check against, nothing can be concluded: keep the
+    // row as it stands and report it.
+    if (!bse.length) { stillGone.push(r); continue; }
+    const b = bseFor(r[4], r[2] || r[1], r[0]);
+    if (!b || !b.bseSym) { stillGone.push(r); continue; }
+    const wasBse = r[5] === 'BSE';
+    r[1] = b.bseSym; r[2] = b.bseSym; r[3] = b.bseCode; r[5] = 'BSE';
+    if (!wasBse) movedToBse.push({ sym: b.bseSym, name: r[0] });
+  }
+
+  // ── BSE-primary listings ───────────────────────────────────────────────
+  // Hindustan Motors, Umang Dairies and Tanfac are listed on BSE and not on
+  // NSE at all. Field 1 is read everywhere as the symbol to look up, so a
+  // BSE-only row carries BSE's ticker in both symbol slots and is marked
+  // 'BSE'; the app reads that marker and resolves it as .BO rather than .NS.
+  // Three things disqualify a scrip, because each would make the list wrong
+  // rather than merely incomplete:
+  //   - no ticker published: there is nothing to look up
+  //   - a company already on the list: BSE still lists Piramal as PEL long
+  //     after NSE moved it to PIRAMALFIN, and adding it lists one business
+  //     twice under two identities
+  //   - a ticker that is some other company's NSE symbol: the new row would
+  //     shadow that company in every search
   const usedBse = new Set();
   rows.forEach(r => { if (r[3]) usedBse.add(r[3]); });
   const bseUnmatched = bse.filter(b => !usedBse.has(b.bseCode));
 
-  return { rows, added, updated, gone: orphans, superseded, bseUnmatched };
+  const heldSyms = new Set(rows.map(r => r[1]));
+  const heldNames = new Set(rows.map(r => nameKey(r[0])));
+  const heldIsins = new Set(rows.map(r => r[4]).filter(Boolean));
+  const bseAdded = [], bseSkipped = [];
+  for (const b of bseUnmatched) {
+    const why = !b.bseSym ? 'no ticker published'
+      // An Indian ISIN says what the instrument is: INE is a company's equity,
+      // INF a mutual fund or ETF unit. BSE's scrip file mixes them, and 45 ETFs
+      // came through on the first pass - Nifty and Sensex trackers, not
+      // companies, with nothing for the analyser to read a balance sheet from.
+      : /^INF/i.test(b.isin) ? 'a fund or ETF unit, not a company'
+      : heldIsins.has(b.isin) ? 'ISIN already on the list'
+      : heldNames.has(nameKey(b.name)) ? 'already listed under its NSE identity'
+      : heldSyms.has(b.bseSym) ? 'ticker ' + b.bseSym + ' is an NSE company'
+      : null;
+    if (why) { bseSkipped.push({ b, why }); continue; }
+    const row = [titleCase(b.name), b.bseSym, b.bseSym, b.bseCode, b.isin, 'BSE'];
+    rows.push(row);
+    bseAdded.push(row);
+    heldSyms.add(b.bseSym);
+    heldNames.add(nameKey(b.name));
+    if (b.isin) heldIsins.add(b.isin);
+  }
+
+  return { rows, added, updated, gone: stillGone, superseded, bseSkipped, bseAdded, movedToBse };
 }
 
 (async () => {
@@ -265,7 +331,7 @@ function merge(existing, nse, bse) {
       console.log(`  BSE: skipped (${e.message}). Existing BSE codes are kept.`);
     }
 
-    const { rows, added, updated, gone, superseded, bseUnmatched } = merge(existing, nse, bse);
+    const { rows, added, updated, gone, superseded, bseSkipped, bseAdded, movedToBse } = merge(existing, nse, bse);
     rows.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
 
     console.log(`\n${added} added, ${updated} updated, ${rows.length} total`);
@@ -275,14 +341,24 @@ function merge(existing, nse, bse) {
     }
     if (bse.length) {
       console.log(`\nBSE: ${rows.filter(r => r[3]).length} companies now carry a scrip code`);
-      if (bseUnmatched.length) {
-        console.log(`     ${bseUnmatched.length} BSE scrips matched nothing (BSE-only, or listed there under a retired ticker). Not added:`);
-        bseUnmatched.slice(0, 15).forEach(b => console.log(`       ${b.bseCode}  ${b.bseSym || ''}  ${b.name}`));
-        if (bseUnmatched.length > 15) console.log(`       … and ${bseUnmatched.length - 15} more`);
+      if (bseAdded.length) {
+        console.log(`     ${bseAdded.length} BSE-primary companies added (not listed on NSE, looked up as .BO):`);
+        bseAdded.slice(0, 15).forEach(r => console.log(`       ${r[3]}  ${r[1]}  ${r[0]}`));
+        if (bseAdded.length > 15) console.log(`       … and ${bseAdded.length - 15} more`);
+      }
+      if (movedToBse.length) {
+        console.log(`     ${movedToBse.length} companies NSE dropped but BSE still lists, now BSE-primary:`);
+        movedToBse.forEach(m => console.log(`       ${m.sym}  ${m.name}`));
+      }
+      if (bseSkipped.length) {
+        console.log(`     ${bseSkipped.length} BSE scrips deliberately not added:`);
+        const byWhy = new Map();
+        bseSkipped.forEach(x => byWhy.set(x.why, (byWhy.get(x.why) || 0) + 1));
+        [...byWhy].sort((a, b) => b[1] - a[1]).forEach(([w, n]) => console.log(`       ${String(n).padStart(4)}  ${w}`));
       }
     }
     if (gone.length) {
-      console.log(`\n${gone.length} in the file but not in today's NSE list (kept, check them):`);
+      console.log(`\n${gone.length} listed on neither exchange today (kept, check them):`);
       gone.slice(0, 40).forEach(r => console.log(`   ${r[1]}  ${r[0]}`));
       if (gone.length > 40) console.log(`   … and ${gone.length - 40} more`);
     }

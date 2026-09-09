@@ -4277,9 +4277,10 @@ group('india stock list — data file');
 
   const rows = JSON.parse(fs2.readFileSync(srcFile, 'utf8'));
   ok('it holds the full list', rows.length > 2000, `only ${rows.length} rows`);
-  // Five fields, plus an optional sixth marking an NSE Emerge (SME) listing.
-  ok('every row is [name, nse, bse, bseCode, isin] with an optional SME flag',
-     rows.every(r => Array.isArray(r) && (r.length === 5 || (r.length === 6 && r[5] === 'SME'))),
+  // Five fields, plus an optional sixth naming the board: SME for NSE Emerge,
+  // BSE for a company listed on BSE and not on NSE.
+  ok('every row is [name, nse, bse, bseCode, isin] with an optional board flag',
+     rows.every(r => Array.isArray(r) && (r.length === 5 || (r.length === 6 && (r[5] === 'SME' || r[5] === 'BSE')))),
      'row shape varies');
   ok('the SME board is present and marked',
      rows.filter(r => r[5] === 'SME').length > 400, 'no SME listings');
@@ -4304,6 +4305,34 @@ group('india stock list — data file');
   eq('no SME listing claims a BSE scrip code',
      rows.filter(r => r[5] === 'SME' && r[3]).length, 0);
 
+  // ── BSE-primary listings ────────────────────────────────────────────────
+  // Hindustan Motors, Tanfac and Umang Dairies are listed on BSE and not on
+  // NSE. Field 1 is what the app looks up, so these rows carry BSE's ticker in
+  // both symbol slots and the marker is what makes the lookup .BO not .NS.
+  const bseOnly = rows.filter(r => r[5] === 'BSE');
+  ok('companies listed only on BSE are present', bseOnly.length > 50,
+     `only ${bseOnly.length} BSE-primary rows`);
+  eq('every BSE-primary row carries a scrip code', bseOnly.filter(r => !r[3]).length, 0);
+  // If the two slots disagreed the app would look up one ticker and label the
+  // result with the other.
+  eq('a BSE-primary row holds the same ticker in both symbol slots',
+     bseOnly.filter(r => r[1] !== r[2]).length, 0);
+  // An Indian ISIN says what the instrument is: INE a company's equity, INF a
+  // fund or ETF unit. BSE's scrip file mixes them and 45 Nifty and Sensex
+  // trackers came through on the first pass.
+  eq('no ETF or mutual fund unit is on the list',
+     rows.filter(r => /^INF/i.test(r[4] || '')).length, 0);
+  // BSE publishes names in capitals. Left alone they shout in the dropdown
+  // beside three thousand title-cased ones.
+  eq('BSE-primary names are not left in capitals',
+     bseOnly.filter(r => /^[^a-z]+$/.test(r[0])).length, 0);
+  // Gujarat State Petronet, Cigniti and JB Chemicals are no longer on NSE but
+  // still trade on BSE. Deleting them would lose companies that are reachable.
+  ok('a company NSE dropped but BSE still lists is kept as BSE-primary',
+     ['GSPL', 'CIGNITITEC', 'JBCHEPHARM'].every(sym => {
+       const r = rows.find(x => x[1] === sym); return r && r[5] === 'BSE' && r[3];
+     }), 'delisted-from-NSE companies were dropped or left claiming an NSE symbol');
+
   // Seven rows were duplicated: the 2024 listings were appended without
   // removing the alphabetical entries already there.
   const syms = rows.map(r => r[1]);
@@ -4321,6 +4350,15 @@ group('india stock list — data file');
   ok('the page declares the loader', /function loadStockDb\(\)/.test(SRC), 'no loader');
   ok('a failed load explains itself rather than showing nothing',
      /cannot be read when this page is opened directly from a file/.test(SRC), 'no explanation');
+
+  // A BSE-primary company is not on NSE, so leaving the selector on NSE sends a
+  // .NS request for a symbol that does not exist and returns an empty chart.
+  ok('picking a BSE-primary company switches the exchange to BSE',
+     /if \(s\[5\] === 'BSE'\) \{[\s\S]{0,200}exchEl\.value = 'BSE'/.test(SRC),
+     'the exchange is left on NSE');
+  ok('the dropdown says a company is BSE only', /BSE only ·/.test(SRC), 'board not named');
+  ok('switching back to NSE by hand is warned about',
+     /is not listed on NSE\./.test(SRC) && /_bseOnlyNotice/.test(SRC), 'no warning');
 }
 
 group('india stock list — refresh tool');
@@ -4359,9 +4397,18 @@ group('india stock list — refresh tool');
      /nameKey\(byS\.name\) === nameKey\(name\)/.test(src), 'ticker match is unguarded');
   ok("BSE's own export format is understood",
      /FININSTRMID/.test(src) && /TCKRSYMB/.test(src), 'only the legacy CSV shape');
-  // A BSE-only company has no NSE symbol, and the first field is treated as one.
-  ok('BSE-only scrips are reported rather than added',
-     /bseUnmatched/.test(src), 'no report of unmatched BSE scrips');
+  // A BSE-only company has no NSE symbol, and the first field is read as one,
+  // so these rows carry BSE's ticker in both slots and a 'BSE' marker.
+  ok('BSE-only companies are added as BSE-primary rows',
+     /'BSE'\]/.test(src) && /bseAdded/.test(src), 'BSE-only scrips are still dropped');
+  ok('a scrip already on the list under its NSE identity is not added',
+     /already listed under its NSE identity/.test(src), 'would list one business twice');
+  ok('a scrip whose ticker is an NSE company is not added',
+     /is an NSE company/.test(src), 'a BSE row could shadow an NSE company');
+  ok('fund and ETF units are excluded by their ISIN',
+     /\^INF/.test(src), 'ETFs would be added as companies');
+  ok('a company NSE dropped but BSE still lists becomes BSE-primary',
+     /movedToBse/.test(src), 'delisted-from-NSE companies are just reported');
 
   // A company name containing a comma must not shift every later column.
   const { execFileSync } = require('child_process');
@@ -4381,6 +4428,39 @@ group('india stock list — refresh tool');
   ok('rights entitlements are dropped, other series kept',
      /NSE main board: 2 listings/.test(out), out.slice(0, 300));
   ok('a dry run writes nothing', /nothing written/.test(out), out.slice(0, 200));
+
+  // Drive the BSE side end to end. Four scrips, one of each outcome: a genuine
+  // BSE-only company, one that is the same business as an NSE row under a name
+  // BSE has not caught up with, an ETF unit, and one whose ticker is an NSE
+  // company's symbol.
+  const bseCsv = 'Sgmt,Src,FinInstrmId,ISIN,TckrSymb,SctySrs,XpryDt,FininstrmActlXpryDt,StrkPric,OptnTp,FinInstrmNm\n'
+               // Codes are picked out of the range BSE does not use, so they
+               // cannot collide with a real scrip already on the list.
+               + 'CM,BSE,999001,INE999Z01099,ONLYBSE,A,,,,,ONLY ON BSE LTD.\n'
+               + 'CM,BSE,999002,INE111Z01011,CMMAINC,A,,,,,COMMA INC LTD\n'
+               + 'CM,BSE,999003,INF444Z01044,SOMEETF,B,,,,,SOME NIFTY ETF\n'
+               + 'CM,BSE,999004,INE555Z01055,BBB,B,,,,,QUITE ANOTHER BUSINESS LTD\n';
+  const tmp2 = path2.join(require('os').tmpdir(), 'nse-test2-' + process.pid + '.csv');
+  const tmpB = path2.join(require('os').tmpdir(), 'bse-test-' + process.pid + '.csv');
+  fs2.writeFileSync(tmp2, csv);
+  fs2.writeFileSync(tmpB, bseCsv);
+  let out2 = '';
+  try {
+    out2 = execFileSync(process.execPath, [tool, '--nse', tmp2, '--bse', tmpB, '--dry-run'],
+                        { encoding: 'utf8', stdio: 'pipe' });
+  } catch (e) { out2 = String(e.stdout || '') + String(e.stderr || ''); }
+  fs2.unlinkSync(tmp2); fs2.unlinkSync(tmpB);
+
+  ok('a BSE-only company is added', /999001\s+ONLYBSE/.test(out2), out2.slice(-600));
+  ok('exactly one of the four is added', /1 BSE-primary companies added/.test(out2), out2.slice(-600));
+  // Comma Inc matched an NSE row on ISIN, so it is not unmatched at all.
+  ok('a scrip that matched an NSE row is not added again',
+     !/999002/.test(out2), out2.slice(-600));
+  ok('the ETF unit is skipped and said to be one',
+     /a fund or ETF unit, not a company/.test(out2), out2.slice(-600));
+  ok('a scrip whose ticker is an NSE symbol is skipped',
+     /is an NSE company/.test(out2), out2.slice(-600));
+  ok('the BSE run still writes nothing on a dry run', /nothing written/.test(out2), out2.slice(-200));
 }
 
 group('shipped page parses');
