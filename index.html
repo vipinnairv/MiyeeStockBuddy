@@ -723,6 +723,12 @@ body{font-family:'Roboto','Space Grotesk',system-ui,-apple-system,'Segoe UI',san
   border-radius:12px;background:var(--BL);color:var(--B);
 }
 .tab.active .tab-cnt{background:rgba(255,255,255,.28);color:#fff}
+/* Leaves the Portfolio Manager rather than switching a page inside it, so it is
+   separated from the tabs it sits beside and never takes the active state. */
+.tab-jump{color:var(--B);margin-left:8px;position:relative}
+.tab-jump::before{content:"";position:absolute;left:-6px;top:8px;bottom:8px;width:1px;background:var(--bd)}
+.tab-jump:hover{background:var(--BL)}
+.tab-jump-ar{font-size:10px;opacity:.65}
 
 /* ═══ GLOSSARY POPOVERS ═══ */
 .g-term{border-bottom:1px dashed var(--accent);cursor:help;color:inherit}
@@ -2321,6 +2327,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
     <div class="tab" data-tab="ltp"><span class="tab-ic">🔄</span> Update LTP</div>
     <div class="tab" data-tab="datamgmt"><span class="tab-ic">⚙️</span> Data Mgmt</div>
     <div class="tab" data-tab="sync"><span class="tab-ic">☁</span> Google Drive</div>
+    <div class="tab tab-jump" onclick="switchApp('learn')" title="Open the Learn Academy: the beginner's guide to every number in this app"><span class="tab-ic">📚</span> Learn <span class="tab-jump-ar">&#8599;</span></div>
   </div>
   <!-- Right scroll arrow -->
   <button id="nav-right" onclick="scrollNav(1)" style="flex-shrink:0;width:30px;height:40px;border:none;background:var(--white);color:var(--T3);font-size:16px;cursor:pointer;border-left:1px solid var(--bd);padding:0;line-height:1;">&#8250;</button>
@@ -18176,12 +18183,14 @@ async function runPortfolioAI() {
 const RENDERERS={dashboard:renderDashboard,india:renderIndia,us:()=>filterTable('us'),crypto:()=>filterTable('cry'),fd:renderFD,mf:renderMF,taxation:()=>{renderTaxation();renderIfSold();},analysis:()=>{renderAnalysis();renderXRay();renderIncome();renderBenchmark();renderGrowth();renderAttribution();renderHarvest();renderRebalance();renderRisk().then(()=>{try{renderDiversification();}catch(e){}});},signals:renderSignals,reports:renderReports,transactions:()=>filterTable('txn'),ltp:renderLTP,datamgmt:renderDataMgmt,sync:()=>{if(S.gClientId)document.getElementById('gd-clientid').value=S.gClientId;GD.updateUI();}};
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click',()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
     const tab=t.dataset.tab;
+    const page=tab?document.getElementById('page-'+tab):null;
+    if(!page) return;                    // not a page tab, its own onclick handles it
     // Scoped: the analyser shares the .page/.active convention (see showPage).
     document.querySelectorAll('#section-portfolio .page').forEach(p=>p.classList.remove('active'));
-    document.getElementById('page-'+tab).classList.add('active');
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    page.classList.add('active');
     if(RENDERERS[tab]) RENDERERS[tab]();
   });
 });
