@@ -4093,17 +4093,32 @@ group('learn academy — progress tracking');
 
   // Every quiz must be answerable and correctly keyed, or a reader is marked
   // wrong for an answer the guide taught them.
-  const parts = Object.keys(LEARN_QUIZ_KEYS(api));
-  function LEARN_QUIZ_KEYS(a) { return a.LEARN_QUIZ; }
-  eq('one quick check per part', parts.join(','), '1,2,3,4,5,6');
-  const qs = parts.flatMap(k => api.LEARN_QUIZ[k]);
-  eq('three questions in each', qs.length, parts.length * 3);
+  const keys = Object.keys(api.LEARN_QUIZ);
+  const qs = keys.flatMap(k => api.LEARN_QUIZ[k]);
+  eq('two questions in every quick check', qs.length, keys.length * 2);
+
+  // The gate is the point: passing a section's check is what unlocks Mark as
+  // read. A section with no check is silently ungated, so the ids the guide
+  // renders and the ids the quiz bank carries must be exactly the same set.
+  {
+    const src2 = slice('const LEARN_BLOCKS = [', '\n</script>', 'learn');
+    const { LEARN_BLOCKS } = load(src2.replace(/^const /gm, 'var '), ['LEARN_BLOCKS']);
+    const slug = t => 'ln-' + String(t).toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+    const sections = LEARN_BLOCKS.filter(b => b.k === 'h2').map(b => slug(b.t));
+    eq('no two sections share an id', sections.length, new Set(sections).size);
+    eq('every section has a quick check', sections.filter(id => !api.LEARN_QUIZ[id]).join(', '), '');
+    eq('no quick check is orphaned',
+       keys.filter(k => sections.indexOf(k) < 0).join(', '), '');
+    ok('there are as many checks as sections', keys.length === sections.length && keys.length >= 25,
+       keys.length + ' checks for ' + sections.length + ' sections');
+  }
   ok('every question has a correct answer inside its option list',
      qs.every(q => Number.isInteger(q.c) && q.c >= 0 && q.c < q.a.length), 'index out of range');
   ok('every question explains itself', qs.every(q => q.why && q.why.length > 40), 'missing explanation');
   ok('no question offers duplicate options',
      qs.every(q => new Set(q.a).size === q.a.length), 'duplicate option');
-  ok('the pass mark is reachable', api.LP_PASS > 0 && api.LP_PASS <= 3, 'bad pass mark');
+  ok('the pass mark is reachable', api.LP_PASS > 0 && api.LP_PASS <= 2, 'bad pass mark');
 
   // The quizzes teach the same numbers the engine computes.
   const quizText = JSON.stringify(api.LEARN_QUIZ);
