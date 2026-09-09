@@ -128,13 +128,17 @@ function readBSE(text) {
   }
   const rows = parseCSV(t);
   const head = rows[0].map(h => h.trim().toUpperCase());
-  const iCode = head.findIndex(h => /SECURITY\s*CODE|SCRIP\s*CODE/.test(h));
-  const iName = head.findIndex(h => /ISSUER\s*NAME|SECURITY\s*NAME|SCRIP\s*NAME/.test(h));
+  // BSE's own CM scrip export uses FinInstrmId / TckrSymb / FinInstrmNm; the
+  // older download uses Security Code / Security Name. Both appear in the wild.
+  const iCode = head.findIndex(h => /SECURITY\s*CODE|SCRIP\s*CODE|FININSTRMID/.test(h));
+  const iName = head.findIndex(h => /ISSUER\s*NAME|SECURITY\s*NAME|SCRIP\s*NAME|FININSTRMNM/.test(h));
   const iIsin = head.findIndex(h => h.includes('ISIN'));
+  const iSym  = head.findIndex(h => /TCKRSYMB|SECURITY\s*ID|SCRIP\s*ID/.test(h));
   if (iCode < 0 || iIsin < 0) throw new Error('BSE file is missing expected columns; got: ' + head.join(', '));
   return rows.slice(1).map(r => ({
     name: (r[iName] || '').trim(),
     bseCode: parseInt((r[iCode] || '').trim(), 10) || null,
+    bseSym: iSym >= 0 ? (r[iSym] || '').trim().toUpperCase() : '',
     isin: (r[iIsin] || '').trim().toUpperCase(),
   })).filter(r => r.bseCode && r.isin);
 }
@@ -151,17 +155,36 @@ function merge(existing, nse, bse) {
     bySym.set(r[1], r);
   }
   const bseByIsin = new Map(bse.map(b => [b.isin, b]));
+  // An ISIN's last characters change after a split or a face-value change, so
+  // the two exchanges' files disagree for a while after a corporate action:
+  // Bajaj Finance is INE296A01032 on NSE and INE296A01024 on BSE today. Falling
+  // back to the ticker recovers those, but only when the company names agree
+  // as well, so a coincidental ticker collision cannot pair two businesses.
+  const bseBySym = new Map(bse.filter(b => b.bseSym).map(b => [b.bseSym, b]));
+  const nameKey = n => String(n).toLowerCase()
+    .replace(/\([^)]*\)/g, ' ').replace(/\b(ltd|limited|the|inc|corp|co)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  const bseFor = (isin, sym, name) => {
+    const byI = isin ? bseByIsin.get(isin) : null;
+    if (byI) return byI;
+    const byS = sym ? bseBySym.get(sym) : null;
+    if (byS && name && byS.name && nameKey(byS.name) === nameKey(name)) return byS;
+    return null;
+  };
 
   let added = 0, updated = 0;
   const seen = new Set();
 
   for (const s of nse) {
     const prior = (s.isin && byIsin.get(s.isin)) || bySym.get(s.nse) || null;
-    const b = s.isin ? bseByIsin.get(s.isin) : null;
+    const b = bseFor(s.isin, s.nse, s.name);
+    // BSE keeps its own ticker, which often differs from the NSE one and lags a
+    // rename. Storing the NSE symbol in the BSE slot, as the list did, made the
+    // dropdown claim a BSE ticker that BSE does not use.
+    const bseSym = (b && b.bseSym) || (prior && prior[2] !== prior[1] ? prior[2] : s.nse);
     const row = prior
-      ? [s.name || prior[0], s.nse, prior[2] === prior[1] ? s.nse : prior[2],
-         b ? b.bseCode : prior[3], s.isin || prior[4]]
-      : [s.name, s.nse, s.nse, b ? b.bseCode : null, s.isin];
+      ? [s.name || prior[0], s.nse, bseSym, b ? b.bseCode : prior[3], s.isin || prior[4]]
+      : [s.name, s.nse, bseSym, b ? b.bseCode : null, s.isin];
     if (s.sme) row[5] = 'SME'; else if (row.length > 5) row.length = 5;
     if (prior) {
       if (JSON.stringify(prior) !== JSON.stringify(row)) updated++;
@@ -198,7 +221,15 @@ function merge(existing, nse, bse) {
   // Everything else the NSE file no longer lists is reported, never deleted
   // here: a truncated download would otherwise wipe companies out with no way
   // back, and a name may still be listed on BSE.
-  return { rows, added, updated, gone: orphans, superseded };
+  // BSE scrips that matched nothing: BSE-only companies, plus names BSE still
+  // lists under a ticker NSE has since retired. Reported, not added: a BSE-only
+  // row would carry a BSE ticker in the NSE slot and resolve to a .NS symbol
+  // that does not exist.
+  const usedBse = new Set();
+  rows.forEach(r => { if (r[3]) usedBse.add(r[3]); });
+  const bseUnmatched = bse.filter(b => !usedBse.has(b.bseCode));
+
+  return { rows, added, updated, gone: orphans, superseded, bseUnmatched };
 }
 
 (async () => {
@@ -234,13 +265,21 @@ function merge(existing, nse, bse) {
       console.log(`  BSE: skipped (${e.message}). Existing BSE codes are kept.`);
     }
 
-    const { rows, added, updated, gone, superseded } = merge(existing, nse, bse);
+    const { rows, added, updated, gone, superseded, bseUnmatched } = merge(existing, nse, bse);
     rows.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
 
     console.log(`\n${added} added, ${updated} updated, ${rows.length} total`);
     if (superseded.length) {
       console.log(`\n${superseded.length} renamed, old symbol dropped:`);
       superseded.forEach(s2 => console.log(`   ${s2.old} -> ${s2.now}   ${s2.name}`));
+    }
+    if (bse.length) {
+      console.log(`\nBSE: ${rows.filter(r => r[3]).length} companies now carry a scrip code`);
+      if (bseUnmatched.length) {
+        console.log(`     ${bseUnmatched.length} BSE scrips matched nothing (BSE-only, or listed there under a retired ticker). Not added:`);
+        bseUnmatched.slice(0, 15).forEach(b => console.log(`       ${b.bseCode}  ${b.bseSym || ''}  ${b.name}`));
+        if (bseUnmatched.length > 15) console.log(`       … and ${bseUnmatched.length - 15} more`);
+      }
     }
     if (gone.length) {
       console.log(`\n${gone.length} in the file but not in today's NSE list (kept, check them):`);
