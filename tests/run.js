@@ -3904,7 +3904,7 @@ group('learn academy — content integrity');
 
   ok('the guide has substantial content', LEARN_BLOCKS.length > 150, `only ${LEARN_BLOCKS.length} blocks`);
 
-  const KINDS = new Set(['h1','h2','h3','p','ul','box','table']);
+  const KINDS = new Set(['h1','h2','h3','p','ul','box','table','fig']);
   const badKind = LEARN_BLOCKS.filter(b => !KINDS.has(b.k)).map(b => b.k);
   eq('every block has a kind the renderer knows', badKind.join(','), '');
 
@@ -3918,6 +3918,7 @@ group('learn academy — content integrity');
       b.k === 'table' ? b.head.concat(...b.rows).map(runText).join(' ')
     : b.k === 'ul'    ? b.items.map(runText).join(' ')
     : b.k === 'box'   ? (b.label || '') + ' ' + b.lines.map(runText).join(' ')
+    : b.k === 'fig'   ? ''
     : b.t != null     ? b.t : runText(b.r)).join(' \n');
 
   // The brief was explicit: no em dashes. En dash and the Unicode minus read
@@ -3949,9 +3950,28 @@ group('learn academy — content integrity');
   ok('teaches the 1.5 to 3 ATR stop', has('1.5 to 3'), 'ATR stop multiple missing');
   ok('teaches MFI 80 / 20', has('Above 80') && has('Below 20'), 'MFI bands missing');
   ok('teaches the 1 to 1.5 risk and reward floor', has('1 to 1.5'), 'R:R floor missing');
+  // Tone. A guide for people new to markets must not tell them what they do not
+  // know, or label them while it teaches them. The warnings stay; the labelling
+  // of the reader does not.
+  const CONDESCENDING = [
+    'you know nothing', 'know nothing about', 'assumes you know',
+    'beginner mistake', 'beginner trap', 'catches beginners',
+    'most beginners', 'beginners often', 'beginner losses',
+    'obviously', 'simply put', 'as everyone knows', 'even a novice',
+  ];
+  const lower = all.toLowerCase();
+  const rude = CONDESCENDING.filter(t => lower.indexOf(t) >= 0);
+  eq('the guide never talks down to the reader', rude.join(', '), '');
+
   ok('says plainly that indicators do not predict', has('do not predict'), 'no such caveat');
   ok('carries the not-advice disclaimer', has('not investment advice'), 'disclaimer missing');
   ok('names SEBI registration status', has('SEBI'), 'SEBI note missing');
+
+  // Figures. A fig block naming a builder that does not exist renders as an
+  // empty string, which is invisible in review and a hole on the page.
+  const figIds = LEARN_BLOCKS.filter(b => b.k === 'fig').map(b => b.id);
+  ok('the guide is illustrated', figIds.length >= 9, `only ${figIds.length} figures`);
+  eq('no figure is placed twice', figIds.length, new Set(figIds).size);
 }
 
 group('learn academy — rendering');
@@ -3966,7 +3986,7 @@ group('learn academy — rendering');
       <div id="learn-searchnote"></div><div id="learn-body"></div>`);
     const doc = dom.window.document;
     const api = load(src.replace(/^const /gm, 'var ').replace(/^let /gm, 'var '),
-      ['LEARN_BLOCKS','renderLearn','learnSearch','learnClearSearch','_lnEsc','_lnRuns','_lnSlug'],
+      ['LEARN_BLOCKS','LEARN_FIGS','renderLearn','learnSearch','learnClearSearch','_lnEsc','_lnRuns','_lnSlug'],
       { document: doc, window: dom.window });
 
     // Escaping first: the block model is data, and data must never become markup.
@@ -3987,7 +4007,7 @@ group('learn academy — rendering');
     eq('the opening note keeps its own untitled section',
        body.querySelectorAll('.ln-part').length, 8);
     ok('and it is the first thing the reader sees',
-       body.querySelector('.ln-part').textContent.indexOf('This guide assumes you know nothing') >= 0,
+       body.querySelector('.ln-part').textContent.indexOf('No prior knowledge is needed') >= 0,
        body.querySelector('.ln-part').textContent.slice(0, 60));
     ok('the contents rail is populated', toc.querySelectorAll('a').length > 25,
        `only ${toc.querySelectorAll('a').length} links`);
@@ -4023,6 +4043,27 @@ group('learn academy — rendering');
     ok('and says so rather than showing a blank page',
        doc.getElementById('learn-searchnote').textContent.indexOf('Nothing matches') === 0,
        doc.getElementById('learn-searchnote').textContent);
+
+    // Figures actually draw. An SVG that throws or renders empty leaves a
+    // labelled box with nothing in it, which reads as a broken image.
+    const figs = body.querySelectorAll('figure.ln-fig');
+    eq('every figure block renders a figure', figs.length,
+       api.LEARN_BLOCKS.filter(b => b.k === 'fig').length);
+    const noSvg = [...figs].filter(f => !f.querySelector('svg')).length;
+    eq('every figure contains an svg', noSvg, 0);
+    const noCap = [...figs].filter(f => !(f.querySelector('figcaption') || {}).textContent).length;
+    eq('every figure is captioned', noCap, 0);
+    // The caption is also the accessible description, so it must not be empty
+    // or a restatement of the title.
+    const unlabelled = [...figs].filter(f => {
+      const a = f.querySelector('svg').getAttribute('aria-label');
+      return !a || a.length < 40;
+    }).length;
+    eq('every figure carries a real accessible description', unlabelled, 0);
+    // Marks may wear the series colours; text may not.
+    const colouredText = [...body.querySelectorAll('figure.ln-fig svg text')]
+      .filter(t => /--ln-(up|down|s1|s2|s3)/.test(t.getAttribute('fill') || '')).length;
+    eq('figure text uses ink tokens, never a series colour', colouredText, 0);
 
     api.learnClearSearch();
     eq('clearing the search restores every group',

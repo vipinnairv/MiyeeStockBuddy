@@ -723,6 +723,12 @@ body{font-family:'Roboto','Space Grotesk',system-ui,-apple-system,'Segoe UI',san
   border-radius:12px;background:var(--BL);color:var(--B);
 }
 .tab.active .tab-cnt{background:rgba(255,255,255,.28);color:#fff}
+/* Leaves the Portfolio Manager rather than switching a page inside it, so it is
+   separated from the tabs it sits beside and never takes the active state. */
+.tab-jump{color:var(--B);margin-left:8px;position:relative}
+.tab-jump::before{content:"";position:absolute;left:-6px;top:8px;bottom:8px;width:1px;background:var(--bd)}
+.tab-jump:hover{background:var(--BL)}
+.tab-jump-ar{font-size:10px;opacity:.65}
 
 /* ═══ GLOSSARY POPOVERS ═══ */
 .g-term{border-bottom:1px dashed var(--accent);cursor:help;color:inherit}
@@ -1436,6 +1442,15 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   --ln-char:#2D3748; --ln-muted:#5A6B7B; --ln-wash:#E8F6FB; --ln-rule:#CBD9E3;
   --ln-warm:#FFF4E5; --ln-warmbd:#D98324; --ln-warmtx:#8A5200;
   --ln-page:#FFFFFF; --ln-zebra:#F4FAFD;
+  /* Figure palette. Up and down keep the green/red the market expects, but
+     these two steps were chosen with the validator rather than by eye: the
+     usual pair separates by only 4.1 under deuteranopia, which is a coin toss
+     for roughly one man in twelve. These measure 10.6, above the floor of 8,
+     and every up/down mark also carries a shape and a written label. */
+  --ln-up:#1A9E4B; --ln-down:#B32020;
+  --ln-s1:#2A78D6; --ln-s2:#EB6834; --ln-s3:#4A3AA7;
+  --ln-ink:#1F2A37; --ln-ink2:#5A6B7B; --ln-track:#DCE7EE;
+  --ln-grid:#C2D2DE; --ln-warn:#FAB219;
   background:var(--ln-page); color:var(--ln-char);
   font-family:Verdana,Geneva,"DejaVu Sans",sans-serif;
   min-height:calc(100vh - 44px);
@@ -1445,6 +1460,12 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   --ln-char:#DCE6ED; --ln-muted:#93A6B4; --ln-wash:#0E2836; --ln-rule:#25455A;
   --ln-warm:#3A2A12; --ln-warmbd:#D98324; --ln-warmtx:#F0C48A;
   --ln-page:#0B1620; --ln-zebra:#101E2A;
+  /* Dark is stepped for the dark surface, not flipped: same validator, same
+     five checks, deuteranopia separation 10.9. */
+  --ln-up:#28AD6C; --ln-down:#BF3B3B;
+  --ln-s1:#3987E5; --ln-s2:#D95926; --ln-s3:#9085E9;
+  --ln-ink:#E7EFF5; --ln-ink2:#93A6B4; --ln-track:#1D3444;
+  --ln-grid:#2C4C61; --ln-warn:#FAB219;
 }
 #section-learn *{box-sizing:border-box}
 .ln-hero{background:linear-gradient(135deg,#0A2540 0%,#13395E 55%,#0077B6 100%);
@@ -1529,6 +1550,21 @@ a.ln-toc-b{font-size:11.5px;color:var(--ln-muted);padding:4px 0 4px 18px;}
 .ln-box-caution{border-left-color:var(--ln-warmbd);background:var(--ln-warm);}
 .ln-box-caution .ln-box-lbl{color:var(--ln-warmtx);}
 
+/* Figures. The SVG scales to the column; the caption carries the point in
+   words, so it doubles as the accessible description. */
+.ln-fig{margin:16px 0 20px;padding:14px 14px 10px;border:1px solid var(--ln-rule);
+  border-radius:10px;background:var(--ln-page);}
+.ln-fig svg{display:block;width:100%;height:auto;max-height:280px;overflow:visible;
+  font-family:Verdana,Geneva,"DejaVu Sans",sans-serif;}
+.ln-fig figcaption{font-size:11.5px;line-height:1.6;color:var(--ln-muted);
+  margin-top:10px;padding-top:9px;border-top:1px solid var(--ln-rule);}
+.ln-fig-key{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;}
+.ln-key{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ln-char);}
+.ln-key-m{flex:none;background:var(--k);}
+.ln-key-bar{width:12px;height:12px;border-radius:3px;}
+.ln-key-hollow{width:12px;height:12px;border-radius:3px;background:var(--ln-page);
+  border:2px solid var(--k);}
+.ln-key-line{width:16px;height:3px;border-radius:2px;}
 .ln-tw{overflow-x:auto;margin:14px 0 18px;-webkit-overflow-scrolling:touch;}
 table.ln-tbl{border-collapse:collapse;width:100%;min-width:460px;}
 table.ln-tbl th{background:var(--ln-navy);color:#fff;font-size:11.5px;font-weight:700;
@@ -1615,7 +1651,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
       <button onclick="switchApp('learn')" class="launch-card" style="--lc:#00B4D8">
         <div class="launch-ico">📚</div>
         <div class="launch-ttl">Learn Academy</div>
-        <div class="launch-sub">Start from zero: how markets work, how to read a balance sheet and a candlestick, and what every indicator in this app actually means.</div>
+        <div class="launch-sub">How markets work, how to read a balance sheet and a candlestick, and what every indicator in this app actually means. No prior knowledge needed.</div>
         <div class="launch-go">Open the guide →</div>
       </button>
     </div>
@@ -2321,6 +2357,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
     <div class="tab" data-tab="ltp"><span class="tab-ic">🔄</span> Update LTP</div>
     <div class="tab" data-tab="datamgmt"><span class="tab-ic">⚙️</span> Data Mgmt</div>
     <div class="tab" data-tab="sync"><span class="tab-ic">☁</span> Google Drive</div>
+    <div class="tab tab-jump" onclick="switchApp('learn')" title="Open the Learn Academy: the beginner's guide to every number in this app"><span class="tab-ic">📚</span> Learn <span class="tab-jump-ar">&#8599;</span></div>
   </div>
   <!-- Right scroll arrow -->
   <button id="nav-right" onclick="scrollNav(1)" style="flex-shrink:0;width:30px;height:40px;border:none;background:var(--white);color:var(--T3);font-size:16px;cursor:pointer;border-left:1px solid var(--bd);padding:0;line-height:1;">&#8250;</button>
@@ -3277,7 +3314,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
   <div class="ln-hero">
     <div class="ln-hero-kick">MiyeeStock Buddy</div>
     <div class="ln-hero-ttl">The Learn Academy</div>
-    <div class="ln-hero-sub">A complete beginner&#39;s guide to trading and investing in India. It assumes you know nothing, explains every term the moment it appears, and gives you an everyday comparison for each one so it sticks.</div>
+    <div class="ln-hero-sub">A complete beginner&#39;s guide to trading and investing in India. No prior knowledge is needed: every term is explained the moment it appears, with an everyday comparison for each one so it sticks.</div>
     <div class="ln-hero-rule"></div>
   </div>
   <div class="ln-wrap">
@@ -13394,12 +13431,14 @@ async function runPortfolioAI() {
 const RENDERERS={dashboard:renderDashboard,india:renderIndia,us:()=>filterTable('us'),crypto:()=>filterTable('cry'),fd:renderFD,mf:renderMF,taxation:()=>{renderTaxation();renderIfSold();},analysis:()=>{renderAnalysis();renderXRay();renderIncome();renderBenchmark();renderGrowth();renderAttribution();renderHarvest();renderRebalance();renderRisk().then(()=>{try{renderDiversification();}catch(e){}});},signals:renderSignals,reports:renderReports,transactions:()=>filterTable('txn'),ltp:renderLTP,datamgmt:renderDataMgmt,sync:()=>{if(S.gClientId)document.getElementById('gd-clientid').value=S.gClientId;GD.updateUI();}};
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click',()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
     const tab=t.dataset.tab;
+    const page=tab?document.getElementById('page-'+tab):null;
+    if(!page) return;                    // not a page tab, its own onclick handles it
     // Scoped: the analyser shares the .page/.active convention (see showPage).
     document.querySelectorAll('#section-portfolio .page').forEach(p=>p.classList.remove('active'));
-    document.getElementById('page-'+tab).classList.add('active');
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    page.classList.add('active');
     if(RENDERERS[tab]) RENDERERS[tab]();
   });
 });
