@@ -1550,6 +1550,82 @@ a.ln-toc-b{font-size:11.5px;color:var(--ln-muted);padding:4px 0 4px 18px;}
 .ln-box-caution{border-left-color:var(--ln-warmbd);background:var(--ln-warm);}
 .ln-box-caution .ln-box-lbl{color:var(--ln-warmtx);}
 
+/* ── progress tracking ───────────────────────────────────────────────────── */
+#learn-progress{border:1px solid var(--ln-rule);border-radius:10px;padding:13px 15px;
+  margin:0 0 16px;background:var(--ln-wash);}
+.lp-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.lp-h{font-size:10.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--ln-cyberd);}
+.lp-acts{display:flex;gap:7px;}
+.lp-btn{padding:5px 11px;border:1px solid var(--ln-rule);background:var(--ln-page);
+  color:var(--ln-muted);border-radius:7px;font:inherit;font-size:11px;font-weight:700;cursor:pointer;}
+.lp-btn:hover:not(:disabled){border-color:var(--ln-cyber);color:var(--ln-cyberd);}
+.lp-btn:disabled{opacity:.45;cursor:default;}
+.lp-btn-go{background:var(--ln-cyberd);border-color:var(--ln-cyberd);color:#fff;}
+.lp-btn-go:hover:not(:disabled){background:var(--ln-navy2);border-color:var(--ln-navy2);color:#fff;}
+.lp-bar{height:7px;border-radius:4px;background:var(--ln-track);overflow:hidden;margin:11px 0 9px;}
+.lp-bar span{display:block;height:100%;border-radius:4px;background:var(--ln-cyber);transition:width .3s;}
+.lp-stats{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:11.5px;color:var(--ln-char);}
+.lp-stats b{color:var(--ln-navy2);}
+.lp-note{font-size:10.5px;color:var(--ln-muted);margin-top:9px;}
+
+.lp-foot{margin:12px 0 4px;padding-top:10px;border-top:1px dashed var(--ln-rule);}
+.lp-mark{padding:5px 12px;border:1px solid var(--ln-rule);background:var(--ln-page);
+  color:var(--ln-muted);border-radius:20px;font:inherit;font-size:11px;font-weight:700;cursor:pointer;}
+.lp-mark:hover{border-color:var(--ln-cyber);color:var(--ln-cyberd);}
+.lp-mark.on{background:var(--ln-up);border-color:var(--ln-up);color:#fff;}
+.ln-grp.lp-done > h3.ln-h2{color:var(--ln-muted);}
+.ln-grp.lp-done > h3.ln-h2::after{content:" \2713";color:var(--ln-up);font-weight:700;}
+#learn-toc a.lp-read::after{content:" \2713";color:var(--ln-up);font-weight:700;}
+.lp-cnt{float:right;font-size:10px;font-weight:700;color:var(--ln-muted);
+  background:var(--ln-track);border-radius:9px;padding:0 6px;margin-left:6px;}
+.lp-cnt.all{background:var(--ln-up);color:#fff;}
+
+.lp-quiz{border:1px solid var(--ln-rule);border-radius:10px;padding:14px 15px;margin:22px 0 8px;
+  background:var(--ln-page);}
+.lp-quiz-h{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:10.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--ln-cyberd);}
+.lp-quiz-best{background:var(--ln-track);color:var(--ln-char);border-radius:9px;
+  padding:1px 8px;letter-spacing:.3px;text-transform:none;font-size:10.5px;}
+.lp-quiz-i{font-size:11.5px;line-height:1.6;color:var(--ln-muted);margin:8px 0 14px;}
+.lp-q{margin-bottom:16px;}
+.lp-q-t{font-size:12.5px;font-weight:700;color:var(--ln-navy2);margin-bottom:8px;line-height:1.5;}
+.lp-opt{display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;
+  padding:8px 11px;margin-bottom:6px;border:1px solid var(--ln-rule);border-radius:8px;
+  background:var(--ln-page);color:var(--ln-char);font:inherit;font-size:12px;line-height:1.5;cursor:pointer;}
+.lp-opt:hover:not(:disabled){border-color:var(--ln-cyber);}
+.lp-opt:disabled{cursor:default;}
+.lp-opt-b{flex:none;width:19px;height:19px;border-radius:50%;background:var(--ln-track);
+  color:var(--ln-char);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.lp-opt.sel{border-color:var(--ln-cyber);background:var(--ln-wash);}
+.lp-opt.sel .lp-opt-b{background:var(--ln-cyber);color:#fff;}
+/* Right and wrong carry a word as well as a colour, so the outcome does not
+   depend on telling green from red. */
+.lp-opt.right{border-color:var(--ln-up);background:color-mix(in srgb,var(--ln-up) 10%,transparent);}
+.lp-opt.right .lp-opt-b{background:var(--ln-up);color:#fff;}
+.lp-opt.wrong{border-color:var(--ln-down);background:color-mix(in srgb,var(--ln-down) 8%,transparent);}
+.lp-opt.wrong .lp-opt-b{background:var(--ln-down);color:#fff;}
+.lp-opt-tag{margin-left:auto;flex:none;font-size:10px;font-weight:700;color:var(--ln-muted);
+  text-transform:uppercase;letter-spacing:.6px;padding-left:8px;}
+.lp-why{font-size:11.5px;line-height:1.6;color:var(--ln-char);background:var(--ln-wash);
+  border-left:3px solid var(--ln-cyber);border-radius:0 6px 6px 0;padding:9px 12px;margin-top:4px;}
+.lp-result{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;
+  color:var(--ln-char);padding-top:10px;border-top:1px solid var(--ln-rule);}
+.lp-result.ok b{color:var(--ln-up);}
+.lp-result.no b{color:var(--ln-down);}
+.lp-quiz-n{font-size:11px;color:var(--ln-muted);}
+
+.lp-cert{margin-top:13px;padding:15px 16px;border:2px solid var(--ln-cyber);border-radius:10px;
+  background:var(--ln-page);text-align:center;}
+.lp-cert-k{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--ln-cyberd);}
+.lp-cert-t{font-size:19px;font-weight:900;color:var(--ln-navy);margin:5px 0 7px;}
+.lp-cert-b{font-size:12px;color:var(--ln-char);line-height:1.6;}
+.lp-cert-s{font-size:10.5px;color:var(--ln-muted);line-height:1.55;margin:8px 0 11px;}
+
+@media print{
+  .lp-foot,.lp-quiz,.lp-acts{display:none !important;}
+  #learn-progress{border:none;background:none;padding:0;}
+}
+
 /* Figures. The SVG scales to the column; the caption carries the point in
    words, so it doubles as the accessible description. */
 .ln-fig{margin:16px 0 20px;padding:14px 14px 10px;border:1px solid var(--ln-rule);
@@ -3314,7 +3390,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
   <div class="ln-hero">
     <div class="ln-hero-kick">MiyeeStock Buddy</div>
     <div class="ln-hero-ttl">The Learn Academy</div>
-    <div class="ln-hero-sub">A complete beginner&#39;s guide to trading and investing in India. No prior knowledge is needed: every term is explained the moment it appears, with an everyday comparison for each one so it sticks.</div>
+    <div class="ln-hero-sub">A structured introduction to investing and trading in the Indian markets, from how a share price is set to how a position is sized.</div>
     <div class="ln-hero-rule"></div>
   </div>
   <div class="ln-wrap">
@@ -3329,12 +3405,14 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
         <button type="button" onclick="window.print()" title="Print the guide or save it as a PDF">Print</button>
       </div>
       <div id="learn-searchnote" role="status"></div>
+      <div id="learn-progress"></div>
       <div id="learn-body"></div>
     </main>
   </div>
 </div>
 <script>
 // @include js/learn.js
+// @include js/learn-progress.js
 </script>
 
 <div id="tz"></div>
