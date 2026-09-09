@@ -1442,6 +1442,15 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   --ln-char:#2D3748; --ln-muted:#5A6B7B; --ln-wash:#E8F6FB; --ln-rule:#CBD9E3;
   --ln-warm:#FFF4E5; --ln-warmbd:#D98324; --ln-warmtx:#8A5200;
   --ln-page:#FFFFFF; --ln-zebra:#F4FAFD;
+  /* Figure palette. Up and down keep the green/red the market expects, but
+     these two steps were chosen with the validator rather than by eye: the
+     usual pair separates by only 4.1 under deuteranopia, which is a coin toss
+     for roughly one man in twelve. These measure 10.6, above the floor of 8,
+     and every up/down mark also carries a shape and a written label. */
+  --ln-up:#1A9E4B; --ln-down:#B32020;
+  --ln-s1:#2A78D6; --ln-s2:#EB6834; --ln-s3:#4A3AA7;
+  --ln-ink:#1F2A37; --ln-ink2:#5A6B7B; --ln-track:#DCE7EE;
+  --ln-grid:#C2D2DE; --ln-warn:#FAB219;
   background:var(--ln-page); color:var(--ln-char);
   font-family:Verdana,Geneva,"DejaVu Sans",sans-serif;
   min-height:calc(100vh - 44px);
@@ -1451,6 +1460,12 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   --ln-char:#DCE6ED; --ln-muted:#93A6B4; --ln-wash:#0E2836; --ln-rule:#25455A;
   --ln-warm:#3A2A12; --ln-warmbd:#D98324; --ln-warmtx:#F0C48A;
   --ln-page:#0B1620; --ln-zebra:#101E2A;
+  /* Dark is stepped for the dark surface, not flipped: same validator, same
+     five checks, deuteranopia separation 10.9. */
+  --ln-up:#28AD6C; --ln-down:#BF3B3B;
+  --ln-s1:#3987E5; --ln-s2:#D95926; --ln-s3:#9085E9;
+  --ln-ink:#E7EFF5; --ln-ink2:#93A6B4; --ln-track:#1D3444;
+  --ln-grid:#2C4C61; --ln-warn:#FAB219;
 }
 #section-learn *{box-sizing:border-box}
 .ln-hero{background:linear-gradient(135deg,#0A2540 0%,#13395E 55%,#0077B6 100%);
@@ -1535,6 +1550,21 @@ a.ln-toc-b{font-size:11.5px;color:var(--ln-muted);padding:4px 0 4px 18px;}
 .ln-box-caution{border-left-color:var(--ln-warmbd);background:var(--ln-warm);}
 .ln-box-caution .ln-box-lbl{color:var(--ln-warmtx);}
 
+/* Figures. The SVG scales to the column; the caption carries the point in
+   words, so it doubles as the accessible description. */
+.ln-fig{margin:16px 0 20px;padding:14px 14px 10px;border:1px solid var(--ln-rule);
+  border-radius:10px;background:var(--ln-page);}
+.ln-fig svg{display:block;width:100%;height:auto;max-height:280px;overflow:visible;
+  font-family:Verdana,Geneva,"DejaVu Sans",sans-serif;}
+.ln-fig figcaption{font-size:11.5px;line-height:1.6;color:var(--ln-muted);
+  margin-top:10px;padding-top:9px;border-top:1px solid var(--ln-rule);}
+.ln-fig-key{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;}
+.ln-key{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ln-char);}
+.ln-key-m{flex:none;background:var(--k);}
+.ln-key-bar{width:12px;height:12px;border-radius:3px;}
+.ln-key-hollow{width:12px;height:12px;border-radius:3px;background:var(--ln-page);
+  border:2px solid var(--k);}
+.ln-key-line{width:16px;height:3px;border-radius:2px;}
 .ln-tw{overflow-x:auto;margin:14px 0 18px;-webkit-overflow-scrolling:touch;}
 table.ln-tbl{border-collapse:collapse;width:100%;min-width:460px;}
 table.ln-tbl th{background:var(--ln-navy);color:#fff;font-size:11.5px;font-weight:700;
