@@ -1714,9 +1714,9 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
     </div>
   </div>
   <div style="display:flex;gap:6px;">
+    <button id="btn-learn" onclick="switchApp('learn')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128218; <span>Learn</span></button>
     <button id="btn-analyser" onclick="switchApp('analyser')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s;background:linear-gradient(135deg,#006aff,#0052cc);color:#fff;">&#128269; <span>Stock Analyser</span></button>
     <button id="btn-portfolio" onclick="switchApp('portfolio')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128188; <span>Portfolio Manager</span></button>
-    <button id="btn-learn" onclick="switchApp('learn')" style="padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);">&#128218; <span>Learn</span></button>
   </div>
 </div>
 <div style="height:44px;flex-shrink:0;"></div>
@@ -1732,6 +1732,12 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
       <div style="font-size:14.5px;color:var(--text2,#5b6b7f);max-width:520px;margin:0 auto;line-height:1.6;">What would you like to do? You can switch between them at any time from the header.</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;">
+      <button onclick="switchApp('learn')" class="launch-card" style="--lc:#00B4D8">
+        <div class="launch-ico">📚</div>
+        <div class="launch-ttl">Learn Academy</div>
+        <div class="launch-sub">How markets work, how to read a balance sheet and a candlestick, and what every indicator in this app actually means. No prior knowledge needed.</div>
+        <div class="launch-go">Open the guide →</div>
+      </button>
       <button onclick="switchApp('analyser')" class="launch-card" style="--lc:#006aff">
         <div class="launch-ico">🔍</div>
         <div class="launch-ttl">Stock Analysis</div>
@@ -1743,12 +1749,6 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
         <div class="launch-ttl">Portfolio Manager</div>
         <div class="launch-sub">Track everything you own: equity, crypto, mutual funds and FDs, with live P&amp;L, XIRR, income and taxation.</div>
         <div class="launch-go">Open my portfolio →</div>
-      </button>
-      <button onclick="switchApp('learn')" class="launch-card" style="--lc:#00B4D8">
-        <div class="launch-ico">📚</div>
-        <div class="launch-ttl">Learn Academy</div>
-        <div class="launch-sub">How markets work, how to read a balance sheet and a candlestick, and what every indicator in this app actually means. No prior knowledge needed.</div>
-        <div class="launch-go">Open the guide →</div>
       </button>
     </div>
     <label style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:26px;font-size:12.5px;color:var(--text3,#7b8794);cursor:pointer;">
@@ -13711,10 +13711,20 @@ function scrollNav(dir) {
 // to skip it.
 function showLauncher() {
   var L = document.getElementById('section-launcher');
-  var sA = document.getElementById('section-analyser');
-  var sP = document.getElementById('section-portfolio');
-  if (sA) sA.style.display = 'none';
-  if (sP) sP.style.display = 'none';
+  // Every pane, not a hardcoded two: section-learn was added later and was
+  // left showing behind the chooser.
+  ['section-analyser','section-portfolio','section-learn'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  // Nothing is open on this screen, so no switcher button should look chosen.
+  // The markup ships with the Analyser styled active, which read as a
+  // selection the user had not made.
+  ['btn-analyser','btn-portfolio','btn-learn'].forEach(function(id){
+    var b = document.getElementById(id);
+    if (b) b.style.cssText = 'padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;'
+      + 'border:1px solid rgba(255,255,255,.15);transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);';
+  });
   if (L)  L.style.display  = 'flex';
   var cb = document.getElementById('launch-remember');
   try { if (cb) cb.checked = !!localStorage.getItem('launchSkip'); } catch(e) {}
