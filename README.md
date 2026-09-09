@@ -33,7 +33,11 @@ node build.js              # copies it next to index.html
 If the exchanges block the download, fetch the files in a browser and pass them in:
 
 ```
-npm run stocks:refresh -- --nse ./EQUITY_L.csv --bse ./bse-scrips.csv
+npm run stocks:refresh -- --nse ./EQUITY_L.csv --sme ./SME_EQUITY_L.csv --bse ./bse-scrips.csv
 ```
+
+`--sme` adds the NSE Emerge board. Those companies are marked so the search shows
+"NSE Emerge (SME)" beside them: they are genuinely listed, but they trade in large
+lots on thin volume.
 
 Rows are matched on ISIN and merged, so a company keeps its BSE code even though NSE's file does not carry one. Companies missing from a download are reported but never deleted, so a half-finished download cannot empty the list. Add `--dry-run` to see the changes without writing.

@@ -5,6 +5,8 @@
  *   npm run stocks:refresh                        download both lists
  *   npm run stocks:refresh -- --nse ./EQUITY_L.csv --bse ./bse.csv
  *                                                 use files already downloaded
+ *   npm run stocks:refresh -- --sme ./SME_EQUITY_L.csv
+ *                                                 also take the NSE Emerge board
  *   npm run stocks:refresh -- --dry-run           report the changes, write nothing
  *
  * Why a merge rather than a replace. NSE's EQUITY_L.csv carries the symbol, the
@@ -27,6 +29,7 @@ const OUT = path.join(ROOT, 'src', 'data', 'india-stocks.json');
 
 const NSE_URL = 'https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv';
 const BSE_URL = 'https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w?Group=&Scripcode=&industry=&segment=Equity&status=Active';
+const SME_URL = 'https://nsearchives.nseindia.com/emerge/corporates/content/SME_EQUITY_L.csv';
 
 // ── argument parsing ───────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -77,12 +80,15 @@ function get(url) {
 const readLocal = p => fs.readFileSync(path.resolve(p), 'utf8');
 
 // ── source readers ─────────────────────────────────────────────────────────
-// [{ name, nse, isin }] from NSE's EQUITY_L.csv. Only the EQ series: the rest
-// are debentures, warrants and suspended lines that are not tradable equity.
-function readNSE(text) {
+// [{ name, nse, isin, sme }] from an NSE listing file. Handles both the main
+// board (EQUITY_L.csv) and the SME board (SME_EQUITY_L.csv), which publish the
+// same columns under different header spellings.
+function readNSE(text, sme) {
   const rows = parseCSV(text);
   if (!rows.length) throw new Error('NSE file is empty');
-  const head = rows[0].map(h => h.trim().toUpperCase());
+  // NSE publishes the main board with spaced headers ("NAME OF COMPANY") and
+  // the SME board with underscored ones ("NAME_OF_COMPANY").
+  const head = rows[0].map(h => h.trim().toUpperCase().replace(/_/g, ' '));
   const iSym = head.indexOf('SYMBOL');
   const iName = head.findIndex(h => h.startsWith('NAME OF COMPANY'));
   const iSeries = head.indexOf('SERIES');
@@ -92,11 +98,17 @@ function readNSE(text) {
   }
   const out = [];
   for (const r of rows.slice(1)) {
-    if (iSeries >= 0 && (r[iSeries] || '').trim().toUpperCase() !== 'EQ') continue;
     const nse = (r[iSym] || '').trim().toUpperCase();
     const name = (r[iName] || '').trim();
     const isin = (r[iIsin] || '').trim().toUpperCase();
-    if (nse && name) out.push({ name, nse, isin });
+    if (!nse || !name) continue;
+    // Rights entitlements ride in the same file with a -RE suffix. They are a
+    // temporary instrument, not a company, and expire within weeks.
+    if (/-RE$/.test(nse)) continue;
+    // EQ, BE and BZ are settlement series, not listing status: all three are
+    // listed companies a user may search for. Filtering to EQ alone would have
+    // hidden 273 of them.
+    out.push({ name, nse, isin, sme: !!sme });
   }
   return out;
 }
@@ -128,7 +140,9 @@ function readBSE(text) {
 }
 
 // ── merge ──────────────────────────────────────────────────────────────────
-// Row shape, unchanged: [name, nseSymbol, bseSymbol, bseCode, isin]
+// Row shape: [name, nseSymbol, bseSymbol, bseCode, isin] with an optional
+// sixth element 'SME' for NSE Emerge listings. The sixth is additive, so
+// everything that reads indexes 0 to 4 is unaffected.
 function merge(existing, nse, bse) {
   const byIsin = new Map();
   const bySym = new Map();
@@ -148,6 +162,7 @@ function merge(existing, nse, bse) {
       ? [s.name || prior[0], s.nse, prior[2] === prior[1] ? s.nse : prior[2],
          b ? b.bseCode : prior[3], s.isin || prior[4]]
       : [s.name, s.nse, s.nse, b ? b.bseCode : null, s.isin];
+    if (s.sme) row[5] = 'SME'; else if (row.length > 5) row.length = 5;
     if (prior) {
       if (JSON.stringify(prior) !== JSON.stringify(row)) updated++;
       const i = existing.indexOf(prior);
@@ -156,10 +171,34 @@ function merge(existing, nse, bse) {
     seen.add(row[1]);
   }
 
-  // Companies the NSE file no longer lists. Reported, never deleted here: a
-  // truncated download would otherwise wipe them out with no way back.
-  const gone = existing.filter(r => !seen.has(r[1]));
-  return { rows: existing, added, updated, gone };
+  // A company that changed ticker and has no ISIN on file matches on neither
+  // key, so it survives the merge under its old symbol beside its new one:
+  // BRAINBEES sat next to FIRSTCRY, both Brainbees Solutions, and the stale
+  // one resolves to a Yahoo symbol that no longer exists. Where an orphan's
+  // company name is the same as a row that did match, it is the old identity
+  // of that row and is dropped.
+  const norm = n => String(n).toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')                 // "(FirstCry)"
+    .replace(/\b(ltd|limited|the|inc|corp)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  const keptNames = new Map();
+  existing.forEach(r => { if (seen.has(r[1])) keptNames.set(norm(r[0]), r[1]); });
+
+  const superseded = [];
+  const orphans = [];
+  for (const r of existing) {
+    if (seen.has(r[1])) continue;
+    const now = keptNames.get(norm(r[0]));
+    if (now && now !== r[1]) superseded.push({ old: r[1], now, name: r[0] });
+    else orphans.push(r);
+  }
+  const supersededSyms = new Set(superseded.map(s2 => s2.old));
+  const rows = existing.filter(r => !supersededSyms.has(r[1]));
+
+  // Everything else the NSE file no longer lists is reported, never deleted
+  // here: a truncated download would otherwise wipe companies out with no way
+  // back, and a name may still be listed on BSE.
+  return { rows, added, updated, gone: orphans, superseded };
 }
 
 (async () => {
@@ -171,8 +210,18 @@ function merge(existing, nse, bse) {
     const bseSrc = arg('bse');
 
     console.log(nseSrc ? `reading NSE from ${nseSrc}` : `downloading NSE list…`);
-    const nse = readNSE(nseSrc ? readLocal(nseSrc) : await get(NSE_URL));
-    console.log(`  NSE: ${nse.length} equity listings`);
+    const nse = readNSE(nseSrc ? readLocal(nseSrc) : await get(NSE_URL), false);
+    console.log(`  NSE main board: ${nse.length} listings`);
+
+    // NSE Emerge, the SME board. Optional: these are real listed companies but
+    // they trade in large lots on thin volume, so they are marked as SME rather
+    // than mixed in indistinguishably.
+    const smeSrc = arg('sme');
+    if (smeSrc || has('sme-download')) {
+      const smeRows = readNSE(smeSrc ? readLocal(smeSrc) : await get(SME_URL), true);
+      console.log(`  NSE Emerge (SME): ${smeRows.length} listings`);
+      nse.push(...smeRows);
+    }
 
     let bse = [];
     try {
@@ -185,10 +234,14 @@ function merge(existing, nse, bse) {
       console.log(`  BSE: skipped (${e.message}). Existing BSE codes are kept.`);
     }
 
-    const { rows, added, updated, gone } = merge(existing, nse, bse);
+    const { rows, added, updated, gone, superseded } = merge(existing, nse, bse);
     rows.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
 
     console.log(`\n${added} added, ${updated} updated, ${rows.length} total`);
+    if (superseded.length) {
+      console.log(`\n${superseded.length} renamed, old symbol dropped:`);
+      superseded.forEach(s2 => console.log(`   ${s2.old} -> ${s2.now}   ${s2.name}`));
+    }
     if (gone.length) {
       console.log(`\n${gone.length} in the file but not in today's NSE list (kept, check them):`);
       gone.slice(0, 40).forEach(r => console.log(`   ${r[1]}  ${r[0]}`));

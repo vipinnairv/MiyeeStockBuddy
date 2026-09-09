@@ -4277,8 +4277,16 @@ group('india stock list — data file');
 
   const rows = JSON.parse(fs2.readFileSync(srcFile, 'utf8'));
   ok('it holds the full list', rows.length > 2000, `only ${rows.length} rows`);
-  ok('every row is [name, nse, bse, bseCode, isin]',
-     rows.every(r => Array.isArray(r) && r.length === 5), 'row shape varies');
+  // Five fields, plus an optional sixth marking an NSE Emerge (SME) listing.
+  ok('every row is [name, nse, bse, bseCode, isin] with an optional SME flag',
+     rows.every(r => Array.isArray(r) && (r.length === 5 || (r.length === 6 && r[5] === 'SME'))),
+     'row shape varies');
+  ok('the SME board is present and marked',
+     rows.filter(r => r[5] === 'SME').length > 400, 'no SME listings');
+  ok('the main board is present', rows.filter(r => r.length === 5).length > 2000, 'no main board');
+  // Every company NSE lists carries an ISIN; a blank one means a row that was
+  // hand-added and never reconciled against the exchange.
+  eq('every company has an ISIN', rows.filter(r => !r[4]).length, 0);
   ok('every row has a name and an NSE symbol',
      rows.every(r => r[0] && r[1]), 'blank name or symbol');
   ok('BSE codes are numbers or null',
@@ -4317,8 +4325,18 @@ group('india stock list — refresh tool');
   ok('rows are merged on ISIN, not replaced', /byIsin/.test(src), 'no ISIN merge');
   ok('companies missing from a download are kept, not deleted',
      /kept, never deleted here|gone\.length/.test(src), 'silently deletes');
-  ok('only the EQ series is taken', /!== 'EQ'\) continue/.test(src), 'takes non-equity series');
+  // EQ, BE and BZ are settlement series, not listing status. Filtering to EQ
+  // alone dropped 273 genuinely listed companies from the search.
+  ok('settlement series are not used to exclude companies',
+     !/!== 'EQ'\) continue/.test(src), 'filters by series again');
+  // Rights entitlements ride in the same file and expire within weeks.
+  ok('rights entitlements are excluded', /-RE\$\/\.test\(nse\)/.test(src), 'keeps -RE rows');
+  // A ticker change with no ISIN on file leaves the company listed twice.
+  ok('a renamed company does not survive under both symbols',
+     /superseded/.test(src), 'no rename handling');
   ok('it can read files already downloaded', /--nse|arg\('nse'\)/.test(src), 'download only');
+  ok('both NSE header spellings are handled', /replace\(\/_\/g, ' '\)/.test(src),
+     'SME underscored headers would not parse');
   ok('a blocked BSE download does not abort the refresh',
      /Existing BSE codes are kept/.test(src), 'BSE failure is fatal');
 
@@ -4326,7 +4344,8 @@ group('india stock list — refresh tool');
   const { execFileSync } = require('child_process');
   const csv = 'SYMBOL,NAME OF COMPANY, SERIES, DATE OF LISTING, PAID UP VALUE, MARKET LOT, ISIN NUMBER, FACE VALUE\n'
             + 'AAA,"Comma, Inc Ltd",EQ,01-JAN-2020,10,1,INE111Z01011,10\n'
-            + 'BBB,Not Equity Ltd,BE,01-JAN-2020,10,1,INE222Z01022,10\n';
+            + 'BBB,Trade To Trade Ltd,BE,01-JAN-2020,10,1,INE222Z01022,10\n'
+            + 'CCC-RE,Rights Entitlement Ltd-RE,EQ,01-JAN-2020,10,1,INE333Z01033,10\n';
   const tmp = path2.join(require('os').tmpdir(), 'nse-test-' + process.pid + '.csv');
   fs2.writeFileSync(tmp, csv);
   let out = '';
@@ -4334,8 +4353,10 @@ group('india stock list — refresh tool');
     out = execFileSync(process.execPath, [tool, '--nse', tmp, '--dry-run'], { encoding: 'utf8', stdio: 'pipe' });
   } catch (e) { out = String(e.stdout || '') + String(e.stderr || ''); }
   fs2.unlinkSync(tmp);
-  ok('a quoted company name parses as one field', /1 added/.test(out), out.slice(0, 200));
-  ok('the non-equity row is skipped', /NSE: 1 equity listings/.test(out), out.slice(0, 200));
+  ok('a quoted company name parses as one field', /2 added/.test(out), out.slice(0, 300));
+  // Two of the three rows are companies; the -RE line is an instrument.
+  ok('rights entitlements are dropped, other series kept',
+     /NSE main board: 2 listings/.test(out), out.slice(0, 300));
   ok('a dry run writes nothing', /nothing written/.test(out), out.slice(0, 200));
 }
 
