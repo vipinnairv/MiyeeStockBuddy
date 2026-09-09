@@ -4245,6 +4245,21 @@ group('analyser disclaimer — asked on every load');
      !/generated recommendations/.test(box), 'contradicts the line above it');
 }
 
+
+// ── Contact routes ─────────────────────────────────────────────────────────
+group('contact links reach somebody');
+{
+  const links = SRC.match(/href="mailto:[^"]*"/g) || [];
+  ok('the page offers a way to make contact', links.length >= 4, `only ${links.length}`);
+  // "mailto:?subject=..." opens an empty compose window: prefilled subject and
+  // body, no recipient. Both footer buttons shipped that way.
+  const empty = links.filter(h => /^href="mailto:(\?|")/.test(h));
+  eq('no mail link is missing its recipient', empty.join(' | '), '');
+  const addrs = [...new Set(links.map(h => h.replace(/^href="mailto:/, '').split(/[?"]/)[0]))];
+  eq('every mail link goes to the same address', addrs.join(', '), 'miyee.india@gmail.com');
+  eq('the superseded address is gone', (SRC.match(/audit\.vipin@gmail\.com/g) || []).length, 0);
+}
+
 group('shipped page parses');
 {
   const re = /<script(?![^>]*type=["']module["'])[^>]*>([\s\S]*?)<\/script>/g;
