@@ -5594,9 +5594,12 @@ function _doSymbolSearch(val) {
       } else if (marketMode === 'us' || marketMode === 'commodity') {
         sub = `${s[3] || (marketMode === 'commodity' ? 'Commodity' : 'US Equity')}`; badge = s[1];
       } else {
-        // India: s=[name, nse, bse, bseCode, isin]
+        // India: s=[name, nse, bse, bseCode, isin, 'SME'?]
         const bsePart = s[2] && s[2] !== s[1] ? ` · BSE: ${s[2]}${s[3] ? ' ('+s[3]+')' : ''}` : '';
-        sub = `NSE: ${s[1]}${bsePart} · ISIN: ${s[4] || '-'}`;
+        // NSE Emerge listings trade in large lots on thin volume, so the board
+        // is named rather than left for the user to discover after buying.
+        const board = s[5] === 'SME' ? 'NSE Emerge (SME) · ' : '';
+        sub = `${board}NSE: ${s[1]}${bsePart} · ISIN: ${s[4] || '-'}`;
         badge = s[1];
       }
       return `<div class="dd-item" data-idx="${i}" onmousedown="selectStock(${i})"
