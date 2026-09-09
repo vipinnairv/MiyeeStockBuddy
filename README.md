@@ -40,4 +40,29 @@ npm run stocks:refresh -- --nse ./EQUITY_L.csv --sme ./SME_EQUITY_L.csv --bse ./
 "NSE Emerge (SME)" beside them: they are genuinely listed, but they trade in large
 lots on thin volume.
 
-Rows are matched on ISIN and merged, so a company keeps its BSE code even though NSE's file does not carry one. Companies missing from a download are reported but never deleted, so a half-finished download cannot empty the list. Add `--dry-run` to see the changes without writing.
+Each row is `[name, nseSymbol, bseSymbol, bseCode, isin]` with an optional sixth
+field naming the board:
+
+| sixth field | meaning | looked up as |
+|---|---|---|
+| absent | NSE main board | `SYMBOL.NS` |
+| `SME` | NSE Emerge | `SYMBOL.NS` |
+| `BSE` | listed on BSE, not on NSE | `SYMBOL.BO` |
+
+A `BSE` row carries BSE's ticker in both symbol slots, because the first field is
+what the app looks up; the marker is what makes it append `.BO`. Picking one of
+these in the search switches the exchange selector to BSE and says so, since a
+`.NS` request for a symbol NSE does not list comes back empty with no explanation.
+
+Rows are matched on ISIN and merged, so a company keeps its BSE code even though
+NSE's file does not carry one. When the ISINs disagree, which happens for a while
+after a split or a face-value change, the ticker is used instead, but only when
+the company names agree as well.
+
+Nothing is deleted. A company missing from the NSE download that BSE still lists
+becomes a `BSE` row rather than disappearing; one missing from both is reported and
+kept, so a half-finished download cannot empty the list. BSE scrips that are not
+added are reported with the reason: a fund or ETF unit (an `INF` ISIN rather than
+`INE`), a company already on the list under its NSE identity, or a ticker that
+belongs to some other company on NSE. Add `--dry-run` to see the changes without
+writing.

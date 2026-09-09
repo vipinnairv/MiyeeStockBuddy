@@ -1992,13 +1992,15 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
               </div>
               <div>
                 <span class="stock-resolved-label">Exchange</span>
-                <select class="form-input" id="exchangeInput" style="height:44px;min-width:150px;">
+                <select class="form-input" id="exchangeInput" style="height:44px;min-width:150px;" onchange="_bseOnlyNotice(selectedStockEntry)">
                   <option value="NSE">NSE (.NS)</option>
                   <option value="BSE">BSE (.BO)</option>
                 </select>
               </div>
               <button class="btn btn-primary" onclick="fetchSymbolData()" style="height:44px;padding:0 24px;font-weight:700;" id="fetchBtn">📡 Fetch data</button>
             </div>
+            <!-- Shown only for a company listed on BSE and not on NSE. -->
+            <div id="bseOnlyNote" style="display:none;margin-top:8px;font-size:12px;line-height:1.5;color:var(--text3);"></div>
           </div>
           <!-- File status (populated after a live fetch) -->
           <div class="file-list" id="fileList" style="margin-top:12px;"></div>
@@ -4940,6 +4942,9 @@ function selectMarket(mode) {
     else           excEl.innerHTML = '<option value="CRYPTO">Crypto (USD)</option>';
   }
 
+  // The BSE-only note belongs to one picked company; a market switch clears it.
+  try { _bseOnlyNotice(null); } catch(e) {}
+
   // ── marketSelect dropdown (Stock Details form)
   const msel = document.getElementById('marketSelect');
   if (msel) {
@@ -5594,12 +5599,19 @@ function _doSymbolSearch(val) {
       } else if (marketMode === 'us' || marketMode === 'commodity') {
         sub = `${s[3] || (marketMode === 'commodity' ? 'Commodity' : 'US Equity')}`; badge = s[1];
       } else {
-        // India: s=[name, nse, bse, bseCode, isin, 'SME'?]
-        const bsePart = s[2] && s[2] !== s[1] ? ` · BSE: ${s[2]}${s[3] ? ' ('+s[3]+')' : ''}` : '';
-        // NSE Emerge listings trade in large lots on thin volume, so the board
-        // is named rather than left for the user to discover after buying.
-        const board = s[5] === 'SME' ? 'NSE Emerge (SME) · ' : '';
-        sub = `${board}NSE: ${s[1]}${bsePart} · ISIN: ${s[4] || '-'}`;
+        // India: s=[name, nse, bse, bseCode, isin, 'SME'|'BSE'?]
+        if (s[5] === 'BSE') {
+          // Listed on BSE and not on NSE. Saying so matters: the user would
+          // otherwise switch the exchange to NSE and get an empty chart with
+          // no explanation of why.
+          sub = `BSE only · BSE: ${s[2]}${s[3] ? ' ('+s[3]+')' : ''} · ISIN: ${s[4] || '-'}`;
+        } else {
+          const bsePart = s[2] && s[2] !== s[1] ? ` · BSE: ${s[2]}${s[3] ? ' ('+s[3]+')' : ''}` : '';
+          // NSE Emerge listings trade in large lots on thin volume, so the board
+          // is named rather than left for the user to discover after buying.
+          const board = s[5] === 'SME' ? 'NSE Emerge (SME) · ' : '';
+          sub = `${board}NSE: ${s[1]}${bsePart} · ISIN: ${s[4] || '-'}`;
+        }
         badge = s[1];
       }
       return `<div class="dd-item" data-idx="${i}" onmousedown="selectStock(${i})"
@@ -5645,15 +5657,39 @@ function selectStock(idx) {
   if (marketMode === 'india') {
     const exchEl = document.getElementById('exchangeInput');
     if (exchEl) {
-      const curExch = exchEl.value;
-      // If BSE code exists (s[3]) and user has BSE selected, keep BSE; else default NSE
-      if (curExch === 'BSE' && s[2]) {
+      // A BSE-primary company is not on NSE at all, so leaving the selector on
+      // NSE would send a .NS request for a symbol that does not exist and come
+      // back empty. The exchange is switched for the user and said out loud.
+      if (s[5] === 'BSE') {
+        exchEl.value = 'BSE';
+        document.getElementById('resolvedSymbol').value = s[2];
+        document.getElementById('stockSymbol').value    = s[2];
+      } else if (exchEl.value === 'BSE' && s[2]) {
+        // If BSE code exists (s[3]) and user has BSE selected, keep BSE; else default NSE
         document.getElementById('resolvedSymbol').value = s[2]; // BSE symbol
         document.getElementById('stockSymbol').value    = s[2];
       }
     }
   }
+  _bseOnlyNotice(s);
   dd.style.display = 'none';
+}
+
+// A company listed on BSE and not on NSE will return nothing at all from a .NS
+// lookup, and an empty chart reads as a broken app rather than a wrong setting.
+// This says which it is, both when such a company is picked and if the exchange
+// is later switched back to NSE by hand.
+function _bseOnlyNotice(s) {
+  const el = document.getElementById('bseOnlyNote');
+  if (!el) return;
+  if (!s || s[5] !== 'BSE') { el.style.display = 'none'; el.textContent = ''; return; }
+  const exch = document.getElementById('exchangeInput');
+  const onNse = exch && exch.value === 'NSE';
+  el.innerHTML = onNse
+    ? '<b style="color:var(--red)">' + s[0] + ' is not listed on NSE.</b> '
+      + 'Switch the exchange back to BSE, or this lookup will return no data.'
+    : s[0] + ' is listed on BSE only, so it is looked up as <b>' + s[2] + '.BO</b>.';
+  el.style.display = 'block';
 }
 
 // Hide dropdown on outside click
