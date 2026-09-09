@@ -1430,6 +1430,19 @@ body, .kpi-value, .kpi-sub, table, input, button, .mkt-card, .mkt-tape-item {
   .disc-actions { flex-direction:column; align-items:stretch; }
   .disc-btn-accept,.disc-btn-decline { text-align:center; }
 }
+/* A CDN that did not answer, stated once rather than left as blank panels. */
+#lib-notice{display:none;align-items:flex-start;gap:10px;padding:9px 14px;
+  background:#FFF4E5;border-bottom:1px solid #D98324;color:#7A4A0B;
+  font-size:12px;line-height:1.5;}
+#lib-notice b{color:#5C3708;}
+#lib-notice button{margin-left:auto;flex:none;background:none;border:none;
+  color:#7A4A0B;font-size:18px;line-height:1;cursor:pointer;padding:0 4px;}
+[data-theme="dark"] #lib-notice{background:#3A2A12;color:#F0C48A;border-bottom-color:#D98324;}
+[data-theme="dark"] #lib-notice b{color:#FFD9A6;}
+[data-theme="dark"] #lib-notice button{color:#F0C48A;}
+.chart-offline{padding:14px 16px;font-size:12px;line-height:1.6;color:var(--text3,#7b8794);
+  text-align:center;}
+
 /* ═══════════ THE LEARN ACADEMY ═══════════
    Cyberblue: deep navy headings, cyber-blue accents, charcoal body on white.
    Every rule is scoped to #section-learn on purpose. The Analyser's tokens are
@@ -1613,6 +1626,7 @@ a.ln-toc-b{font-size:11.5px;color:var(--ln-muted);padding:4px 0 4px 18px;}
   text-transform:uppercase;letter-spacing:.6px;padding-left:8px;}
 .lp-why{font-size:11.5px;line-height:1.6;color:var(--ln-char);background:var(--ln-wash);
   border-left:3px solid var(--ln-cyber);border-radius:0 6px 6px 0;padding:9px 12px;margin-top:4px;}
+.lp-why-no{background:var(--ln-warm);border-left-color:var(--ln-warmbd);color:var(--ln-warmtx);}
 .lp-result{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;
   color:var(--ln-char);padding-top:10px;border-top:1px solid var(--ln-rule);}
 .lp-result.ok b{color:var(--ln-up);}
@@ -1706,6 +1720,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
   </div>
 </div>
 <div style="height:44px;flex-shrink:0;"></div>
+<div id="lib-notice" role="status"></div>
 
 <!-- ══ LAUNCH CHOOSER ══ Shown on start so the app opens on a deliberate
      choice rather than whichever half happened to be last. -->
@@ -3550,7 +3565,19 @@ function showPage(id) {
   document.querySelectorAll('#section-analyser .page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-function acceptDisclaimer() { showPage('marketSelectorPage'); }
+function acceptDisclaimer() {
+  try { localStorage.setItem('advStockDisclaimer_v1','accepted'); } catch(e) {}
+  showPage('marketSelectorPage');
+}
+// The full-screen overlay and this page carry the same disclaimer, and the
+// overlay's acceptance was already remembered. Showing this one again on every
+// single reload asked the same person the same question forever.
+(function(){
+  try {
+    if (localStorage.getItem('advStockDisclaimer_v1') === 'accepted'
+        && document.getElementById('marketSelectorPage')) showPage('marketSelectorPage');
+  } catch(e) {}
+})();
 function declineDisclaimer() { showPage('declinePage'); }
 
 // ============================================================
@@ -10951,7 +10978,30 @@ function updateCounts(){
 /* ══════════ RENDER DASHBOARD ══════════ */
 let charts={};
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
-function mkChart(id,cfg){destroyChart(id);charts[id]=new Chart(document.getElementById(id).getContext('2d'),cfg);return charts[id];}
+// Chart.js comes from a CDN, and this app is meant to work from a single saved
+// file. A missing library used to throw straight out of here, and because the
+// call sites are top-level boot statements it took the rest of the startup
+// script with it: no launch chooser, no nav arrows. It now degrades to a note
+// in place of the chart and lets everything else carry on.
+function mkChart(id,cfg){
+  destroyChart(id);
+  const el=document.getElementById(id);
+  if(!el) return null;
+  if(typeof Chart==='undefined'){ _chartUnavailable(el); return null; }
+  try { charts[id]=new Chart(el.getContext('2d'),cfg); return charts[id]; }
+  catch(e){ _chartUnavailable(el); return null; }
+}
+// One note per canvas, saying why the space is empty rather than leaving the
+// reader to guess. The canvas itself is left in place so a later render works
+// if the library arrives.
+function _chartUnavailable(el){
+  const host=el.parentElement; if(!host) return;
+  if(host.querySelector('.chart-offline')) return;
+  const d=document.createElement('div');
+  d.className='chart-offline';
+  d.textContent='Charts need an internet connection the first time the page loads. Every number on this page is still calculated locally.';
+  host.appendChild(d);
+}
 
 function renderDashboard(){
   try { _backupNudge(); } catch(e){}
@@ -13555,7 +13605,7 @@ document.getElementById('usd-badge').style.cursor='pointer';
 document.getElementById('usd-badge').title='Auto-updated daily. Click to set it manually.';
 
 /* ══ INIT ══ */
-loadLocal();
+try { loadLocal(); } catch(e){}
 try { _pbkRecover(); } catch(e){}     // async: restores from the IDB mirror if localStorage came up empty
 try { ghRecordToday(); } catch(e){}   // one portfolio-value point per day
 try { fxRefresh(); } catch(e){}       // USD/INR, once a day, via the Worker
@@ -13568,13 +13618,35 @@ try {                                  // FY list, current year first, + custom
     _sel.value = currentFY();
   }
 } catch(e){}
+// Names the libraries that did not load, once, at the top of the page. Without
+// this a blocked CDN just leaves empty panels with no explanation.
+function _libNotice(){
+  const need = [['Chart','price and portfolio charts'],
+                ['LightweightCharts','the pattern chart'],
+                ['Papa','CSV import'],
+                ['Fuse','fuzzy stock search']];
+  const missing = need.filter(([g]) => typeof window[g] === 'undefined').map(([,label]) => label);
+  if(!missing.length) return;
+  const bar=document.getElementById('lib-notice');
+  if(!bar) return;
+  bar.innerHTML = '<span>Some features could not load: <b>' + missing.join(', ')
+    + '</b>. They are fetched from the internet the first time the page opens. '
+    + 'Everything else, including all calculations and your saved data, works offline.</span>'
+    + '<button type="button" onclick="this.parentElement.style.display=\'none\'" aria-label="Dismiss">&times;</button>';
+  bar.style.display='flex';
+}
+
 const _now=new Date();
 document.getElementById('hdr-date').textContent=_now.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
 document.title='MiyeeStock Buddy';
 document.getElementById('usd-hdr').textContent='₹'+S.usdInr;
-updateCounts();
-GD.updateUI();
-renderDashboard();
+// Guarded individually, like the calls above. These are top-level statements,
+// so an exception in any one of them abandons the remainder of this script
+// block, which is where the launch chooser and the nav arrows are set up.
+try { updateCounts(); } catch(e){}
+try { GD.updateUI(); } catch(e){}
+try { renderDashboard(); } catch(e){}
+try { _libNotice(); } catch(e){}
 
 // ─── Disclaimer Overlay ───────────────────────────────────────────────────────
 function toggleDiscAccept() {
@@ -13586,6 +13658,11 @@ function acceptDisclaimerOverlay() {
   var chk = document.getElementById('disc-chk');
   if (!chk || !chk.checked) return;
   try { localStorage.setItem('advStockDisclaimer_v1','accepted'); } catch(e) {}
+  // The Analyser carries the same disclaimer on its own first page. Accepting
+  // it here settles it there too, so a first-time visitor is not asked the
+  // same question twice in a row.
+  try { if (typeof showPage === 'function' && document.getElementById('marketSelectorPage'))
+          showPage('marketSelectorPage'); } catch(e) {}
   var ov = document.getElementById('disclaimer-overlay');
   if (!ov) return;
   ov.style.transition = 'opacity .4s';

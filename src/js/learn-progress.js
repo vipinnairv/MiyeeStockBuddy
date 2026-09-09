@@ -413,6 +413,16 @@ function learnProgressInit() {
     g.appendChild(f);
   });
 
+  // Restore the last attempt, so returning to a section shows what was answered
+  // rather than a blank quiz beside a score.
+  Object.keys(LEARN_QUIZ).forEach(id => {
+    const rec = p.quiz[id];
+    if (!rec || !rec.sel) return;
+    _LP_ANSWERS[id] = Object.assign({}, rec.sel);
+    const host = document.querySelector('#learn-body .lp-quiz[data-sec="' + id + '"]');
+    if (host) { host.dataset.state = 'marked'; _lpRenderQuiz(id); }
+  });
+
   body.dataset.lp = '1';
   _lpSyncMarks();
   renderLearnPanel();
@@ -497,6 +507,7 @@ function _lpRenderQuiz(partId) {
   const best = (p.quiz[partId] || {}).best;
   const sel = _LP_ANSWERS[partId] || {};
   const marked = host.dataset.state === 'marked';
+  const passed = marked && qs.reduce((n, q, i) => n + (sel[i] === q.c ? 1 : 0), 0) >= LP_PASS;
 
   const cleared = _lpCleared(p, partId);
   let h = '<div class="lp-quiz-h"><span>Quick check</span>'
@@ -504,26 +515,35 @@ function _lpRenderQuiz(partId) {
     + '</div>'
     + '<p class="lp-quiz-i">' + (cleared
         ? 'Cleared. Retake it whenever you like; the best result is the one kept.'
-        : 'Getting both right unlocks Mark as read for this section. The explanation is shown either way, '
-          + 'and there is no limit on retries.') + '</p>';
+        : 'Getting both right unlocks Mark as read for this section. You will be told which answers '
+          + 'were wrong, and the reasoning for the ones you got right; there is no limit on retries.') + '</p>';
 
   qs.forEach((q, i) => {
     h += '<div class="lp-q"><div class="lp-q-t">' + (i + 1) + '. ' + _lpEsc(q.q) + '</div>';
     q.a.forEach((opt, j) => {
       const chosen = sel[i] === j;
       let cls = 'lp-opt';
+      // On a cleared check everything is shown, including the correct answer.
+      // On a failed one only the reader's own wrong picks are marked: revealing
+      // the right answer turned the gate into four clicks (submit anything,
+      // read the answers, retake) and taught nothing in the process.
       if (marked) {
-        if (j === q.c) cls += ' right';
-        else if (chosen) cls += ' wrong';
+        if (passed && j === q.c) cls += ' right';
+        else if (chosen && j !== q.c) cls += ' wrong';
+        else if (chosen) cls += ' right';
       } else if (chosen) cls += ' sel';
       h += '<button type="button" class="' + cls + '" ' + (marked ? 'disabled' : '')
         + ' onclick="learnQuizPick(\'' + partId + '\',' + i + ',' + j + ')">'
         + '<span class="lp-opt-b">' + String.fromCharCode(65 + j) + '</span>' + _lpEsc(opt)
-        + (marked && j === q.c ? '<span class="lp-opt-tag">Correct</span>' : '')
-        + (marked && chosen && j !== q.c ? '<span class="lp-opt-tag">Your answer</span>' : '')
+        + (marked && j === q.c && (passed || chosen) ? '<span class="lp-opt-tag">Correct</span>' : '')
+        + (marked && chosen && j !== q.c ? '<span class="lp-opt-tag">Not this one</span>' : '')
         + '</button>';
     });
-    if (marked) h += '<div class="lp-why">' + _lpEsc(q.why) + '</div>';
+    // The explanation is the payoff for getting it right, or for a question you
+    // already had right in a failed attempt. Withholding it elsewhere is what
+    // sends the reader back to the section instead of back to the buttons.
+    if (marked && (passed || sel[i] === q.c)) h += '<div class="lp-why">' + _lpEsc(q.why) + '</div>';
+    else if (marked) h += '<div class="lp-why lp-why-no">Not right. The answer is in this section, above.</div>';
     h += '</div>';
   });
 
@@ -532,7 +552,7 @@ function _lpRenderQuiz(partId) {
     h += '<div class="lp-result ' + (score >= LP_PASS ? 'ok' : 'no') + '">'
       + '<b>' + score + ' of ' + qs.length + '</b> '
       + (score >= LP_PASS ? 'cleared. This section can now be marked as read. '
-                          : 'Not cleared yet, both are needed. ')
+                          : 'Not cleared yet, both are needed. Re-read the section above, then try again. ')
       + '<button type="button" class="lp-btn" onclick="learnQuizRetake(\'' + partId + '\')">Try again</button></div>';
   } else {
     const answered = Object.keys(sel).length;
@@ -559,7 +579,11 @@ function learnQuizSubmit(partId) {
   const prev = (p.quiz[partId] || {}).best;
   // Only the best attempt is kept, so retaking to learn can never cost a pass
   // already earned.
-  p.quiz[partId] = { best: Math.max(prev == null ? -1 : prev, score), of: qs.length, at: Date.now() };
+  // The attempt itself is kept, not only the score: a reader coming back to a
+  // section could otherwise see "Best 2 of 2" with no record of which answers
+  // earned it.
+  p.quiz[partId] = { best: Math.max(prev == null ? -1 : prev, score), of: qs.length,
+                     at: Date.now(), sel: Object.assign({}, sel) };
   _lpTouchDay(p);
   _lpSave(p);
   const host = document.querySelector('#learn-body .lp-quiz[data-sec="' + partId + '"]');

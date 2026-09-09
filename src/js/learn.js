@@ -576,16 +576,10 @@ function renderLearn(){
     const inner = part.groups.map(g => {
       const head = g.title ? '<h3 class="ln-h2" id="' + g.id + '">' + _lnEsc(g.title) + '</h3>' : '';
       const inner2 = g.blocks.map(_lnBlockHTML).join('');
-      const hay = ((g.title || '') + ' ' + g.blocks.map(b =>
-        b.k === 'table' ? b.head.concat(...b.rows).map(_lnText).join(' ')
-        : b.k === 'ul'  ? b.items.map(_lnText).join(' ')
-        : b.k === 'box' ? (b.label || '') + ' ' + b.lines.map(_lnText).join(' ')
-        : b.k === 'fig' ? (b.cap || '')
-        : b.t || _lnText(b.r)).join(' ')).toLowerCase();
       // data-gid is what progress tracking keys on. Untitled groups (the
       // opening note) carry none and are not counted as sections.
       return '<div class="ln-grp"' + (g.id ? ' data-gid="' + g.id + '"' : '')
-        + ' data-hay="' + _lnEsc(hay) + '">' + head + inner2 + '</div>';
+        + '>' + head + inner2 + '</div>';
     }).join('');
     secs.push('<section class="ln-part" data-part="' + pi + '">'
       + (part.title ? '<h2 class="ln-h1" id="' + part.id + '">' + _lnEsc(part.title) + '</h2>' : '')
@@ -637,7 +631,10 @@ function learnSearch(q){
   const grps = document.querySelectorAll('#learn-body .ln-grp');
   let hits = 0;
   grps.forEach(g => {
-    const show = !term || (g.dataset.hay || '').indexOf(term) >= 0;
+    // Read what is actually on screen. A haystack cached at render time went
+    // stale the moment anything was appended to a section, and told the reader
+    // "nothing matches" for words they could plainly see.
+    const show = !term || (g.textContent || '').toLowerCase().indexOf(term) >= 0;
     g.style.display = show ? '' : 'none';
     if (show && term) hits++;
   });
