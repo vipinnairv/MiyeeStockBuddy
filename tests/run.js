@@ -802,7 +802,9 @@ group('durable portfolio mirror');
   ok('saveLocal mirrors the payload to IDB', /_pbkSave\(payload\)/.test(SRC), 'no mirror on save');
   ok('the mirror is written even if localStorage fails',
      SRC.indexOf('_pbkSave(payload)') < SRC.indexOf('for(let attempt=0'), 'mirror runs after the quota loop');
-  ok('boot attempts recovery', /loadLocal\(\);\s*\n\s*try \{ _pbkRecover\(\)/.test(SRC), 'no boot recovery');
+  // loadLocal is wrapped in its own try now, so match the call rather than the
+  // exact line: the assertion is that recovery is attempted straight after it.
+  ok('boot attempts recovery', /loadLocal\(\);[^\n]*\n\s*try \{ _pbkRecover\(\)/.test(SRC), 'no boot recovery');
   ok('recovery never clobbers existing local data',
      /_pbkRecover[\s\S]*?if\(_holdingsCount\(\)>0\) return false;/.test(SRC), 'no guard against clobber');
 }
@@ -4022,6 +4024,20 @@ group('learn academy — rendering');
       .filter(id => !doc.getElementById(id));
     eq('every contents link resolves to a heading', dead.join(','), '');
 
+    // Search reads what is on screen. A cache built at render time went stale
+    // as soon as anything was appended to a section, and denied words the
+    // reader could see.
+    eq('no group carries a cached search haystack',
+       body.querySelectorAll('.ln-grp[data-hay]').length, 0);
+    const probe = doc.createElement('p');
+    probe.textContent = 'zqxjv appended after render';
+    body.querySelector('.ln-grp').appendChild(probe);
+    api.learnSearch('zqxjv');
+    eq('text appended after render is still findable',
+       [...body.querySelectorAll('.ln-grp')].filter(g => g.style.display !== 'none').length, 1);
+    api.learnSearch('');
+    probe.remove();
+
     const ids = [...body.querySelectorAll('[id]')].map(e => e.id);
     eq('heading anchors are unique', ids.length, new Set(ids).size);
 
@@ -4119,6 +4135,27 @@ group('learn academy — progress tracking');
   ok('no question offers duplicate options',
      qs.every(q => new Set(q.a).size === q.a.length), 'duplicate option');
   ok('the pass mark is reachable', api.LP_PASS > 0 && api.LP_PASS <= 2, 'bad pass mark');
+
+  // The gate must not hand over its own answers. A failed attempt marks the
+  // reader's wrong picks and withholds both the correct option and its
+  // reasoning; otherwise clearing a section is four clicks and no reading.
+  {
+    const src3 = slice('function _lpRenderQuiz(', 'function learnQuizPick(', 'quiz render');
+    ok('the correct option is only flagged once the check is passed',
+       /passed && j === q\.c/.test(src3), 'correct answer revealed on a failed attempt');
+    ok('the explanation is withheld for a question answered wrongly',
+       /marked && \(passed \|\| sel\[i\] === q\.c\)/.test(src3), 'explanation given away');
+    ok('a wrong answer points back at the section rather than at the answer',
+       /The answer is in this section/.test(src3), 'no pointer back to the text');
+  }
+
+  // The attempt itself is stored, not just the score, so a returning reader
+  // sees which answers earned it.
+  {
+    const src4 = slice('function learnQuizSubmit(', 'function learnQuizRetake(', 'quiz submit');
+    ok('the submitted selections are persisted', /sel: Object\.assign\(\{\}, sel\)/.test(src4),
+       'only the score is kept');
+  }
 
   // The quizzes teach the same numbers the engine computes.
   const quizText = JSON.stringify(api.LEARN_QUIZ);
