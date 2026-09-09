@@ -4291,6 +4291,18 @@ group('india stock list — data file');
      rows.every(r => r[0] && r[1]), 'blank name or symbol');
   ok('BSE codes are numbers or null',
      rows.every(r => r[3] === null || typeof r[3] === 'number'), 'bad BSE code type');
+  ok('most companies carry a BSE scrip code', rows.filter(r => r[3]).length > 2000,
+     `only ${rows.filter(r => r[3]).length}`);
+  eq('no BSE scrip code is shared by two companies',
+     rows.filter(r => r[3]).length, new Set(rows.filter(r => r[3]).map(r => r[3])).size);
+  // BSE keeps its own ticker and it lags a rename, so it genuinely differs for
+  // some companies. Storing the NSE symbol there made the dropdown claim a BSE
+  // ticker BSE does not use.
+  ok('the BSE ticker is stored where it differs from the NSE one',
+     rows.filter(r => r[2] !== r[1]).length > 20, 'BSE symbols all mirror NSE');
+  // SME companies are not on the BSE main board.
+  eq('no SME listing claims a BSE scrip code',
+     rows.filter(r => r[5] === 'SME' && r[3]).length, 0);
 
   // Seven rows were duplicated: the 2024 listings were appended without
   // removing the alphabetical entries already there.
@@ -4339,6 +4351,17 @@ group('india stock list — refresh tool');
      'SME underscored headers would not parse');
   ok('a blocked BSE download does not abort the refresh',
      /Existing BSE codes are kept/.test(src), 'BSE failure is fatal');
+  // An ISIN's tail changes after a split, so the exchanges disagree for a while
+  // and an ISIN-only join silently drops the BSE code for those companies.
+  ok('BSE matching falls back to the ticker when ISINs disagree',
+     /bseBySym/.test(src), 'ISIN-only join');
+  ok('the ticker fallback also requires the company names to agree',
+     /nameKey\(byS\.name\) === nameKey\(name\)/.test(src), 'ticker match is unguarded');
+  ok("BSE's own export format is understood",
+     /FININSTRMID/.test(src) && /TCKRSYMB/.test(src), 'only the legacy CSV shape');
+  // A BSE-only company has no NSE symbol, and the first field is treated as one.
+  ok('BSE-only scrips are reported rather than added',
+     /bseUnmatched/.test(src), 'no report of unmatched BSE scrips');
 
   // A company name containing a comma must not shift every later column.
   const { execFileSync } = require('child_process');
