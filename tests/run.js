@@ -4193,6 +4193,58 @@ group('learn academy — progress tracking');
   eq('order does not matter', api._lpStreak([day(2), day(0), day(1)]), 3);
 }
 
+
+// ── The Analyser's disclaimer gate ─────────────────────────────────────────
+// It is deliberately not remembered across reloads. That is a decision, not an
+// oversight, and it has already been "tidied away" once, so it is pinned here.
+group('analyser disclaimer — asked on every load');
+{
+  const src = slice('var _analyserDisclaimerAccepted', '// MARKET MODE', 'analyser gate');
+  const api = load(src.replace(/^var /gm, 'var '),
+    ['acceptDisclaimer','declineDisclaimer','gateAnalyser'],
+    { document: { getElementById: () => ({}) },
+      showPage: id => { globalThis.__page = id; } , window: {} });
+
+  // Acceptance lives in a page variable, so a reload starts over.
+  ok('acceptance is never written to storage', !/localStorage/.test(src),
+     'the gate persists acceptance and would stop asking after a reload');
+  ok('acceptance is held in a page-scoped variable', /_analyserDisclaimerAccepted\s*=\s*false/.test(src),
+     'no in-page flag');
+
+  globalThis.__page = null;
+  api.gateAnalyser();
+  eq('opening the analyser shows the disclaimer first', globalThis.__page, 'disclaimerPage');
+
+  api.acceptDisclaimer();
+  eq('accepting moves on to the market selector', globalThis.__page, 'marketSelectorPage');
+
+  // Within one page load it must not ask twice: switching apps and back would
+  // otherwise discard an analysis in progress.
+  globalThis.__page = null;
+  api.gateAnalyser();
+  eq('returning in the same session is not re-gated', globalThis.__page, null);
+
+  // Declining puts the user on the decline page and re-arms the gate.
+  api.declineDisclaimer();
+  eq('declining leaves the analyser', globalThis.__page, 'declinePage');
+  globalThis.__page = null;
+  api.gateAnalyser();
+  eq('after declining, the disclaimer is shown again', globalThis.__page, 'disclaimerPage');
+
+  // Switching to the analyser must run the gate at all.
+  ok('switchApp gates the analyser', /app === 'analyser' && typeof gateAnalyser === 'function'/.test(SRC),
+     'switchApp does not call the gate');
+
+  // The wording the user asked for, and no contradiction of it elsewhere.
+  const box = slice('<ul class="disclaimer-items">', '</ul>', 'disclaimer box');
+  ok('says the analysis is quantitative', /Quantitative Analysis Only/.test(box), 'missing');
+  ok('says it is for learning and backtesting', /Learning and Backtesting Only/.test(box), 'missing');
+  ok('says plainly that nothing is a recommendation',
+     /Nothing here is a recommendation to buy, sell or hold/.test(box), 'missing');
+  ok('nothing in the box calls its own output a recommendation',
+     !/generated recommendations/.test(box), 'contradicts the line above it');
+}
+
 group('shipped page parses');
 {
   const re = /<script(?![^>]*type=["']module["'])[^>]*>([\s\S]*?)<\/script>/g;
