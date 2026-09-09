@@ -3949,6 +3949,19 @@ group('learn academy — content integrity');
   ok('teaches the 1.5 to 3 ATR stop', has('1.5 to 3'), 'ATR stop multiple missing');
   ok('teaches MFI 80 / 20', has('Above 80') && has('Below 20'), 'MFI bands missing');
   ok('teaches the 1 to 1.5 risk and reward floor', has('1 to 1.5'), 'R:R floor missing');
+  // Tone. A guide for people new to markets must not tell them what they do not
+  // know, or label them while it teaches them. The warnings stay; the labelling
+  // of the reader does not.
+  const CONDESCENDING = [
+    'you know nothing', 'know nothing about', 'assumes you know',
+    'beginner mistake', 'beginner trap', 'catches beginners',
+    'most beginners', 'beginners often', 'beginner losses',
+    'obviously', 'simply put', 'as everyone knows', 'even a novice',
+  ];
+  const lower = all.toLowerCase();
+  const rude = CONDESCENDING.filter(t => lower.indexOf(t) >= 0);
+  eq('the guide never talks down to the reader', rude.join(', '), '');
+
   ok('says plainly that indicators do not predict', has('do not predict'), 'no such caveat');
   ok('carries the not-advice disclaimer', has('not investment advice'), 'disclaimer missing');
   ok('names SEBI registration status', has('SEBI'), 'SEBI note missing');
@@ -3987,7 +4000,7 @@ group('learn academy — rendering');
     eq('the opening note keeps its own untitled section',
        body.querySelectorAll('.ln-part').length, 8);
     ok('and it is the first thing the reader sees',
-       body.querySelector('.ln-part').textContent.indexOf('This guide assumes you know nothing') >= 0,
+       body.querySelector('.ln-part').textContent.indexOf('No prior knowledge is needed') >= 0,
        body.querySelector('.ln-part').textContent.slice(0, 60));
     ok('the contents rail is populated', toc.querySelectorAll('a').length > 25,
        `only ${toc.querySelectorAll('a').length} links`);
