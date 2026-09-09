@@ -1805,8 +1805,9 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
         <h3>⚠️ Important Disclaimer - Please Read</h3>
         <ul class="disclaimer-items">
           <li><span>🚫</span><span><strong>Not SEBI Registered:</strong> Vipin Nair is NOT a SEBI Registered Investment Advisor. This tool does not constitute investment advice.</span></li>
-          <li><span>📚</span><span><strong>Educational Purpose Only:</strong> This is purely an educational tool to understand technical analysis concepts. All outputs are for learning.</span></li>
-          <li><span>⚡</span><span><strong>AI Limitations:</strong> AI-generated recommendations may vary and can be incorrect. External macro factors, geopolitics, and black swan events are not accounted for.</span></li>
+          <li><span>📊</span><span><strong>Quantitative Analysis Only:</strong> Every signal, score and level in this tool is produced by a formula applied to past price and volume. It is arithmetic on history, not a judgement about the company, its management or its prospects.</span></li>
+          <li><span>📚</span><span><strong>Learning and Backtesting Only:</strong> Everything shown is for learning technical analysis and for testing ideas against past data. <strong>Nothing here is a recommendation to buy, sell or hold any security.</strong></span></li>
+          <li><span>⚡</span><span><strong>AI Limitations:</strong> AI-generated commentary may vary and can be incorrect. External macro factors, geopolitics, and black swan events are not accounted for.</span></li>
           <li><span>💼</span><span><strong>Do Your Own Research:</strong> Always consult a SEBI-registered advisor before investing. Past performance ≠ future results.</span></li>
           <li><span>📉</span><span><strong>Market Risk:</strong> Equity investments are subject to market risk. You may lose part or all of your invested capital.</span></li>
           <li><span>📧</span><span><strong>Contact:</strong> For queries - <a href="mailto:audit.vipin@gmail.com" style="color:var(--accent)">audit.vipin@gmail.com</a></span></li>
@@ -3565,20 +3566,22 @@ function showPage(id) {
   document.querySelectorAll('#section-analyser .page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
+// The Analyser's disclaimer is deliberately NOT remembered across reloads.
+// Acceptance lives in this variable, which dies with the page, so every fresh
+// load asks again. Within one load it is asked once: switching to the Portfolio
+// Manager and back must not throw away an analysis in progress.
+var _analyserDisclaimerAccepted = false;
 function acceptDisclaimer() {
-  try { localStorage.setItem('advStockDisclaimer_v1','accepted'); } catch(e) {}
+  _analyserDisclaimerAccepted = true;
   showPage('marketSelectorPage');
 }
-// The full-screen overlay and this page carry the same disclaimer, and the
-// overlay's acceptance was already remembered. Showing this one again on every
-// single reload asked the same person the same question forever.
-(function(){
-  try {
-    if (localStorage.getItem('advStockDisclaimer_v1') === 'accepted'
-        && document.getElementById('marketSelectorPage')) showPage('marketSelectorPage');
-  } catch(e) {}
-})();
-function declineDisclaimer() { showPage('declinePage'); }
+function declineDisclaimer() { _analyserDisclaimerAccepted = false; showPage('declinePage'); }
+// Opening the Stock Analyser puts the disclaimer in front of the user first,
+// however they arrived: the switcher, the launch chooser, or a fresh load.
+function gateAnalyser() {
+  if (_analyserDisclaimerAccepted) return;
+  try { if (document.getElementById('disclaimerPage')) showPage('disclaimerPage'); } catch(e) {}
+}
 
 // ============================================================
 // MARKET MODE - india | us | crypto
@@ -13658,11 +13661,6 @@ function acceptDisclaimerOverlay() {
   var chk = document.getElementById('disc-chk');
   if (!chk || !chk.checked) return;
   try { localStorage.setItem('advStockDisclaimer_v1','accepted'); } catch(e) {}
-  // The Analyser carries the same disclaimer on its own first page. Accepting
-  // it here settles it there too, so a first-time visitor is not asked the
-  // same question twice in a row.
-  try { if (typeof showPage === 'function' && document.getElementById('marketSelectorPage'))
-          showPage('marketSelectorPage'); } catch(e) {}
   var ov = document.getElementById('disclaimer-overlay');
   if (!ov) return;
   ov.style.transition = 'opacity .4s';
@@ -13748,6 +13746,7 @@ function switchApp(app) {
     var btn = document.getElementById(btns[k]);
     if (btn) btn.style.cssText = (k === app) ? activeStyle : inactiveStyle;
   });
+  if (app === 'analyser' && typeof gateAnalyser === 'function') gateAnalyser();
   if (app === 'portfolio' && typeof renderPmAuthGate === 'function') renderPmAuthGate();
   // The guide is built on first open, then reused. renderLearn() is a no-op
   // once the body is populated, so repeat visits cost nothing.
