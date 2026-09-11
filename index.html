@@ -11999,7 +11999,7 @@ def miyee_momentum(closes):
     // the price action under its own analysis, which is the main reason this
     // chart did not feel like the terminals people are used to. Everything is
     // still one click away.
-    // ══ Buy / Sell Zones ═════════════════════════════════════════════════════
+    // ══ Miyee Flow ═══════════════════════════════════════════════════════════
     // Two shaded bands: the area under price where buyers have repeatedly
     // stepped in, and the area above it where sellers have repeatedly capped
     // the move. They are read off the chart's own swing structure, not from a
@@ -12094,7 +12094,7 @@ def miyee_momentum(closes):
 
     const OVERLAYS = { 'SMA200':{s:[s200s],on:s200Ready}, 'BB':{s:[bbU,bbL],on:false},
       'Chandelier':{s:[chandS],on:false}, 'ATR Stop':{s:[trailS],on:false}, 'Donchian':{s:[donU,donL],on:false} };
-    if (_zoneSeries.length) OVERLAYS['Buy/Sell Zones'] = { s:_zoneSeries, on:true };
+    if (_zoneSeries.length) OVERLAYS['Miyee Flow'] = { s:_zoneSeries, on:true };
     // Chandelier, the ATR trailing stop and Donchian come from the daily risk
     // model rather than from the closes on screen, so they cannot be folded.
     if (_periodFolded) ['Chandelier','ATR Stop','Donchian'].forEach(k => {
@@ -12244,7 +12244,7 @@ def miyee_momentum(closes):
       if (_zoneBands.buy)  bits.push(`<b style="color:#26a69a;">Buy zone ${f(_zoneBands.buy.lo)} to ${f(_zoneBands.buy.hi)}</b> (${_zoneBands.buy.touches} swing lows clustered there)`);
       if (_zoneBands.sell) bits.push(`<b style="color:#ef5350;">Sell zone ${f(_zoneBands.sell.lo)} to ${f(_zoneBands.sell.hi)}</b> (${_zoneBands.sell.touches} swing highs clustered there)`);
       _interpHtml += `<div style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.6;">
-        <b>Buy / Sell Zones.</b> ${bits.join(' &nbsp;·&nbsp; ')}.
+        <b>Miyee Flow.</b> ${bits.join(' &nbsp;·&nbsp; ')}.
         <div style="color:var(--text3);font-size:11.5px;margin-top:6px;">
           These are read off this chart's own swing structure: prices where the last ${'' + Math.min(rows.length,160)} bars
           produced two or more turning points within half an average day's range of each other. A level that has
