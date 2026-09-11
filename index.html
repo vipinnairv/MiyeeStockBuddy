@@ -2198,6 +2198,9 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
             <!-- Toolbar: visible range + overlay toggles (buttons built in JS so
                  their active state lives in one place) -->
             <div style="display:flex;gap:6px;align-items:center;padding:6px 12px;background:rgba(19,23,34,0.92);border-bottom:1px solid #363c4e;flex-wrap:wrap;">
+              <span style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Period</span>
+              <div id="lwPeriodBtns" style="display:flex;gap:4px;"></div>
+              <span style="width:1px;height:14px;background:#363c4e;margin:0 4px;"></span>
               <span style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Range</span>
               <div id="lwRangeBtns" style="display:flex;gap:4px;"></div>
               <span style="width:1px;height:14px;background:#363c4e;margin:0 4px;"></span>
@@ -5952,7 +5955,7 @@ function _yfRowsFrom(timestamps, q, adjClose) {
     const l = (q.low?.[i]  ?? rawC ?? 0) * k;
     const c = adjC || 0;
     return {
-      'Date': new Date(ts*1000).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-'),
+      'Date': fmtDMY(new Date(ts*1000)),
       'Open Price':  o.toFixed(2),
       'High Price':  Math.max(h, o, c).toFixed(2),   // guard against float drift
       'Low Price':   Math.min(l, o, c).toFixed(2),
@@ -6250,7 +6253,7 @@ async function fetchSymbolData() {
       rows = Object.entries(ts)
         .sort(([a],[b]) => a < b ? -1 : 1)
         .map(([date, v]) => {
-          const fmt = new Date(date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+          const fmt = fmtDMY(new Date(date));
           // Same adjustment-frame fix as Yahoo: scale O/H/L by adjClose/rawClose.
           const rawC = +v['4. close'], adjC = +(v['5. adjusted close'] || v['4. close']);
           const k = (rawC > 0 && adjC > 0) ? adjC / rawC : 1;
@@ -6268,7 +6271,7 @@ async function fetchSymbolData() {
       const vals = raw.values;
       if (!vals || !vals.length) throw new Error('TwelveData: no values');
       rows = [...vals].reverse().map(v => { // TD returns newest-first
-        const fmt = new Date(v.datetime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+        const fmt = fmtDMY(new Date(v.datetime));
         return { 'Date':fmt, 'Open Price':(+v.open).toFixed(2), 'High Price':(+v.high).toFixed(2), 'Low Price':(+v.low).toFixed(2),
           'Close Price':(+v.close).toFixed(2), 'Total Traded Quantity':(+(v.volume||0)).toString() };
       }).filter(r => +r['Close Price'] > 0);
@@ -6280,7 +6283,7 @@ async function fetchSymbolData() {
       const hist = raw.historical;
       if (!hist || !hist.length) throw new Error('FMP: no historical data');
       rows = [...hist].reverse().map(v => { // FMP returns newest-first
-        const fmt = new Date(v.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+        const fmt = fmtDMY(new Date(v.date));
         return { 'Date':fmt, 'Open Price':(+v.open).toFixed(2), 'High Price':(+v.high).toFixed(2), 'Low Price':(+v.low).toFixed(2),
           'Close Price':(+v.adjClose||+v.close).toFixed(2), 'Total Traded Quantity':(+(v.volume||0)).toString() };
       }).filter(r => +r['Close Price'] > 0).slice(-1300);
@@ -6314,7 +6317,7 @@ async function fetchSymbolData() {
         const [date, open, high, low, close, volume] = line.trim().split(',');
         if (!date || !close || isNaN(+close)) return null;
         const d = new Date(date.trim()); if (isNaN(d)) return null;
-        const fmt = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-');
+        const fmt = fmtDMY(d);
         return { 'Date':fmt, 'Open Price':(+open||+close).toFixed(2), 'High Price':(+high||+close).toFixed(2),
           'Low Price':(+low||+close).toFixed(2), 'Close Price':(+close).toFixed(2), 'Total Traded Quantity':(+(volume||0)).toString() };
       }).filter(Boolean).reverse();
@@ -6529,12 +6532,39 @@ function parseNum(v) {
   return parseFloat(String(v || '0').replace(/[,₹\s]/g,'')) || 0;
 }
 
+// Month abbreviations, three letters, in a fixed order. Used by both the
+// formatter and the parser so the two can never disagree.
+const MON3 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Produce DD-Mon-YYYY without asking the browser for a month name.
+//
+// toLocaleDateString with month:'short' returns "Sept" for September in current
+// browsers, and three letters for every other month. The parser below keyed on a
+// three letter table, so a September bar matched nothing, fell through an
+// "|| 0" default and came back as JANUARY of the same year. The bar then sorted
+// before its neighbours, the chart's ascending-timestamp filter dropped it, and
+// September simply vanished from the chart. Formatting the month ourselves
+// removes the browser's opinion from the round trip entirely.
+function fmtDMY(d) {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  return String(dt.getDate()).padStart(2,'0') + '-' + MON3[dt.getMonth()] + '-' + dt.getFullYear();
+}
+
 function parseDate(s) {
   if (!s) return new Date();
   const p = String(s).trim().split('-');
   if (p.length === 3) {
-    const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-    if (isNaN(p[1])) return new Date(parseInt(p[2]), months[p[1]] || 0, parseInt(p[0]));
+    if (isNaN(p[1])) {
+      // Match on the first three letters, so Sep, Sept and September all work,
+      // whatever an uploaded file or a future browser decides to write.
+      const key = String(p[1]).slice(0,3).toLowerCase();
+      const mi = MON3.findIndex(m => m.toLowerCase() === key);
+      // An unknown month must NOT quietly become January. An invalid date is
+      // dropped by the chart and visible in the data; a wrong one is not.
+      if (mi < 0) return new Date(NaN);
+      return new Date(parseInt(p[2]), mi, parseInt(p[0]));
+    }
     return new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
   }
   return new Date(s);
@@ -8683,15 +8713,75 @@ const MKT_INDICES = [
   ['NIFTY IT','^CNXIT'], ['NIFTY AUTO','^CNXAUTO'], ['NIFTY PHARMA','^CNXPHARMA'],
   ['NIFTY FMCG','^CNXFMCG'], ['NIFTY MIDCAP','^NSEMDCP50'], ['INDIA VIX','^INDIAVIX'],
 ];
-let _mktTimer = null, _mktLoading = false;
+let _mktTimer = null, _mktLoading = false, _mktCacheAge = 0;
 
-async function _fetchIndex(sym) {
+// ── dashboard cache ────────────────────────────────────────────
+// The indices are the first thing on the page and they used to sit empty for as
+// long as the network took. Every fetch is now written to sessionStorage in a
+// compact form, so a revisit paints real numbers on the first frame and the
+// network refresh happens behind an already useful screen. The header says how
+// old the figures are, because a stale price shown as current is worse than a
+// slow one.
+const MKT_CACHE_KEY = 'mktDash_v1';
+const MKT_CACHE_MAX_AGE = 6 * 3600 * 1000;   // beyond six hours, do not paint it
+
+function _mktCacheSave(data) {
+  try {
+    const out = {};
+    Object.keys(data).forEach(k => {
+      const d = data[k];
+      if (!d || !d.rows || !d.rows.length) return;
+      // [timestamp, o, h, l, c, v] per bar keeps all nine near 100 KB.
+      out[k] = { p: d.price, v: d.prev, r: d.read || null,
+                 b: d.rows.map(x => [Math.floor(x.date.getTime()/1000),
+                                     x.open, x.high, x.low, x.close, x.volume||0]) };
+    });
+    sessionStorage.setItem(MKT_CACHE_KEY, JSON.stringify({ t: Date.now(), d: out }));
+  } catch(e) {}   // quota or private mode: the dashboard still works, just slower
+}
+
+function _mktCacheLoad() {
+  try {
+    const raw = sessionStorage.getItem(MKT_CACHE_KEY); if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !o.d || !o.t) return null;
+    if (Date.now() - o.t > MKT_CACHE_MAX_AGE) return null;
+    const data = {};
+    Object.keys(o.d).forEach(k => {
+      const c = o.d[k];
+      if (!c || !Array.isArray(c.b) || !c.b.length) return;
+      data[k] = { price: c.p, prev: c.v, read: c.r || undefined,
+                  rows: c.b.map(a => ({ date:new Date(a[0]*1000), open:a[1], high:a[2],
+                                        low:a[3], close:a[4], volume:a[5] })) };
+    });
+    return Object.keys(data).length ? { at: o.t, data } : null;
+  } catch(e) { return null; }
+}
+
+// One index, fetched through the fastest route available.
+//
+// This used to go straight to the public CORS relays while the analyser used the
+// owner's own Cloudflare Worker first. That is why the dashboard crawled while a
+// single stock loaded quickly: the relays are free, shared and rate limited, and
+// nine indices hit them at once on every page load. The Worker now comes first
+// here too, and the relays are only the fallback.
+function _idxUrls(sym) {
   const yf = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=1y&interval=1d';
   const enc = encodeURIComponent;
-  const urls = [['https://api.allorigins.win/raw?url='+enc(yf),false], ['https://corsproxy.io/?url='+enc(yf),false], ['https://api.allorigins.win/get?url='+enc(yf),true]];
-  for (const [u, wrap] of urls) {
+  const out = [];
+  const sp = (typeof _selfProxyUrl === 'function') ? _selfProxyUrl() : '';
+  if (sp) out.push([sp + '/?url=' + enc(yf), false, 7000]);
+  out.push(['https://api.allorigins.win/raw?url='+enc(yf), false, 9000],
+           ['https://corsproxy.io/?url='+enc(yf), false, 9000],
+           ['https://api.codetabs.com/v1/proxy?quest='+enc(yf), false, 9000],
+           ['https://api.allorigins.win/get?url='+enc(yf), true, 9000]);
+  return out;
+}
+async function _fetchIndex(sym) {
+  const urls = _idxUrls(sym);
+  for (const [u, wrap, ms] of urls) {
     try {
-      const ctrl = new AbortController(); const tm = setTimeout(()=>ctrl.abort(), 8000);
+      const ctrl = new AbortController(); const tm = setTimeout(()=>ctrl.abort(), ms);
       let res; try { res = await fetch(u,{signal:ctrl.signal}); } finally { clearTimeout(tm); }
       if (!res.ok) continue;
       let raw; if (wrap) { const o=await res.json(); const t=o.contents||o.body||''; if(!t) continue; raw = typeof t==='string'?JSON.parse(t):t; } else raw = await res.json();
@@ -8754,7 +8844,9 @@ function renderIndexCards(data) {
   el.innerHTML = `${_tickerTape(data)}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;flex-wrap:wrap;gap:8px;">
       <div style="font-size:15px;font-weight:800;">📊 Market Dashboard <span id="mktLive" style="font-size:10px;color:${_st.color};font-weight:600;${_st.open?'':'animation:none;'}">● ${_st.label}</span></div>
-      <div style="font-size:11px;color:var(--text3);">Updated ${new Date().toLocaleTimeString('en-IN')} · quotes delayed ~15 min · <button onclick="loadMarketDashboard(true)" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;text-decoration:underline;">refresh</button></div>
+      <div style="font-size:11px;color:var(--text3);">${_mktCacheAge
+        ? `<span style="color:var(--accent);">cached ${new Date(_mktCacheAge).toLocaleTimeString('en-IN')}</span> · refreshing…`
+        : `Updated ${new Date().toLocaleTimeString('en-IN')}`} · quotes delayed ~15 min · <button onclick="loadMarketDashboard(true)" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;text-decoration:underline;">refresh</button></div>
     </div><div class="mkt-grid">${cards}</div>
     ${_sectorHeatmap(data)}
     <div id="mktExtra" style="margin-top:14px;"></div>`;
@@ -8972,7 +9064,7 @@ async function loadMovers() {
 function openIndexAnalysis(sym, name) {
   const d = (window._mktData||{})[sym]; if (!d) return;
   parsedData = d.rows.map(r => ({
-    'Date': r.date.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'-'),
+    'Date': fmtDMY(r.date),
     'Open Price':(+r.open).toFixed(2), 'High Price':(+r.high).toFixed(2), 'Low Price':(+r.low).toFixed(2),
     'Close Price':(+r.close).toFixed(2), 'Total Traded Quantity':String(r.volume||0) }));
   document.getElementById('companyName').value = name;
@@ -8993,13 +9085,33 @@ async function loadMarketDashboard(force) {
   if (marketMode !== 'india') { el.style.display = 'none'; clearTimeout(_mktTimer); return; }
   el.style.display = '';
   if (_mktLoading) return; _mktLoading = true;
-  if (!el.innerHTML.trim()) el.innerHTML = '<div style="color:var(--text3);font-size:12.5px;padding:12px;">📊 Loading live market indices…</div>';
-  const data = {}, list = MKT_INDICES.slice();
+
+  // Paint whatever the last visit left behind before touching the network, so
+  // the first frame carries real numbers instead of a spinner.
+  const data = {};
+  const cached = force ? null : _mktCacheLoad();
+  if (cached) {
+    Object.assign(data, cached.data);
+    window._mktData = data;
+    _mktCacheAge = cached.at;
+    try { renderIndexCards(data); } catch(e) {}
+  } else if (!el.innerHTML.trim()) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12.5px;padding:12px;">📊 Loading live market indices…</div>';
+  }
+
+  const list = MKT_INDICES.slice();
   window._mktData = data;
+  // Nine independent requests. Three at a time made the last card wait for two
+  // full rounds of the slowest relay; they do not contend with each other, so
+  // they all go at once.
   async function worker() { while (list.length) { const [name,sym] = list.shift();
-    const d = await _fetchIndex(sym); if (d) { d.read = _indexRead(d.rows); data[sym] = d; window._mktData = data; renderIndexCards(data); } } }
-  await Promise.all(Array.from({length:3}, worker));
+    const d = await _fetchIndex(sym);
+    if (d) { d.read = _indexRead(d.rows); data[sym] = d; window._mktData = data;
+             _mktCacheAge = 0; renderIndexCards(data); } } }
+  await Promise.all(Array.from({length:MKT_INDICES.length}, worker));
+  _mktCacheAge = 0;
   renderIndexCards(data);
+  _mktCacheSave(data);
   // FII/DII + gainers/losers in parallel (non-blocking for the index grid)
   loadFIIDII().then(renderMktExtra).catch(()=>{});
   loadMovers().then(renderMktExtra).catch(()=>{});
@@ -11284,33 +11396,123 @@ function _buildReportHTML(ar, mainImg, patImgs, aiHTML, realityHTML, fx) {
 </body></html>`;
 }
 
+// Selected candle period. Daily bars are what the app fetches; weekly and
+// monthly are folded from them. The fold happens here, at the one place every
+// series on the chart is derived from, so switching period rebuilds the whole
+// chart consistently instead of leaving some overlays on daily bars and others
+// on weekly ones.
+let _chartPeriod = 'D';
+
+// Week starts Monday, month is the calendar month, both keyed off the bar's own
+// date so a reader in any timezone folds the same bars into the same buckets.
+function _foldBars(rows, iv) {
+  if (iv === 'D' || !rows || !rows.length) return rows || [];
+  const key = d => iv === 'M'
+    ? d.getFullYear() * 100 + d.getMonth()
+    : (() => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+               x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getTime(); })();
+  const out = [];
+  let cur = null, k = null;
+  for (const r of rows) {
+    if (!(r.date instanceof Date) || isNaN(r.date.getTime())) continue;
+    const kk = key(r.date);
+    if (kk !== k) {
+      if (cur) out.push(cur);
+      k = kk;
+      // The bucket is stamped with the FIRST bar's date, so the folded series
+      // stays strictly ascending and lines up with the daily one on the left.
+      cur = { date:r.date, open:r.open, high:r.high, low:r.low, close:r.close,
+              volume:(isFinite(r.volume) ? r.volume : 0) };
+    } else {
+      cur.high = Math.max(cur.high, r.high);
+      cur.low  = Math.min(cur.low,  r.low);
+      cur.close = r.close;
+      if (isFinite(r.volume)) cur.volume += r.volume;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 function buildChart(type) {
   if (mainChartInstance) { mainChartInstance.destroy(); mainChartInstance = null; }
 
-  const { data, closes, sma20, sma50, sma200, rsi, macd, bb } = analysisResult;
+  let { data, closes, sma20, sma50, sma200, rsi, macd, bb } = analysisResult;
+
+  // On a weekly or monthly chart every average, band and oscillator has to be
+  // recomputed on the folded closes. Drawing the daily 20 period average across
+  // weekly candles would label a 20 day line as a 20 week one: wrong in a way
+  // that still looks plausible, which is the worst kind.
+  const _periodFolded = (type === 'candle' && _chartPeriod !== 'D');
+  if (_periodFolded) {
+    data   = _foldBars(data, _chartPeriod);
+    closes = data.map(d => d.close);
+    const cap = n => Math.min(n, Math.max(2, closes.length - 1));
+    sma20  = calcSMA(closes, cap(20));
+    sma50  = calcSMA(closes, cap(50));
+    sma200 = calcSMA(closes, cap(200));
+    rsi    = calcRSI(closes, cap(14));
+    macd   = calcMACD(closes);
+    bb     = calcBollinger(closes, cap(20), 2);
+  }
 
   // ── LightweightCharts Candlestick Mode ──────────────────────────────────────
   if (type === 'candle') {
     document.getElementById('lw-container').style.display = 'block';
     document.getElementById('mainChart').parentElement.style.display = 'none';
 
+    // Palette lifted from the reference terminal look people already know, so the
+    // chart reads as familiar rather than as a different product: a near-black
+    // slate in dark, plain white in light, grid lines just visible enough to
+    // measure against and never enough to compete with the candles.
     const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    const bg     = isDark ? '#131722' : '#f8fafc';
-    const txtC   = isDark ? '#d1d4dc' : '#334155';
-    const gridC  = isDark ? 'rgba(42,46,57,0.3)' : 'rgba(0,0,0,0.05)';
-    const bdC    = isDark ? '#363c4e' : '#e2e8f0';
+    const bg      = isDark ? '#131722' : '#ffffff';
+    const txtC    = isDark ? '#b2b5be' : '#131722';
+    const gridC   = isDark ? 'rgba(240,243,250,0.06)' : 'rgba(42,46,57,0.06)';
+    const bdC     = isDark ? '#2a2e39' : '#e0e3eb';
+    const crossC  = isDark ? '#758696' : '#9598a1';
+    const crossBg = isDark ? '#363a45' : '#131722';
+    const FONTSTK = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 
     const mainEl = document.getElementById('lw-chart-main');
     const rsiEl  = document.getElementById('lw-chart-rsi');
     const macdEl = document.getElementById('lw-chart-macd');
 
+    // One date format for every pane, decided here rather than left to the
+    // library's locale guess. TickMarkType: 0 Year, 1 Month, 2 DayOfMonth.
+    const TMT = LightweightCharts.TickMarkType || { Year:0, Month:1, DayOfMonth:2, Time:3 };
+    const _tick = (time, type) => {
+      const d = new Date((typeof time === 'number' ? time : 0) * 1000);
+      if (isNaN(d.getTime())) return '';
+      if (type === TMT.Year)  return String(d.getUTCFullYear());
+      if (type === TMT.Month) return MON3[d.getUTCMonth()] + " '" + String(d.getUTCFullYear()).slice(2);
+      return String(d.getUTCDate());
+    };
+
     const commonOpts = (showTime) => ({
-      layout: { background:{color:bg}, textColor:txtC },
+      layout: { background:{color:bg}, textColor:txtC, fontFamily:FONTSTK, fontSize:11 },
       grid:   { vertLines:{color:gridC}, horzLines:{color:gridC} },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      rightPriceScale: { borderColor:bdC, scaleMargins:{top:0.10, bottom:0.05} },
-      timeScale: { borderColor:bdC, timeVisible:showTime, secondsVisible:false, rightOffset:5, barSpacing:10, minBarSpacing:3 },
-      handleScroll: true, handleScale: true,
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        vertLine: { color:crossC, width:1, style:LightweightCharts.LineStyle.LargeDashed,
+                    labelBackgroundColor:crossBg },
+        horzLine: { color:crossC, width:1, style:LightweightCharts.LineStyle.LargeDashed,
+                    labelBackgroundColor:crossBg },
+      },
+      rightPriceScale: { borderColor:bdC, borderVisible:true, entireTextOnly:true,
+                         scaleMargins:{top:0.10, bottom:0.05} },
+      timeScale: {
+        borderColor:bdC, timeVisible:showTime, secondsVisible:false,
+        // Breathing room on the right. Without it the newest bar sits flush
+        // against the price scale and its date label has nowhere to print,
+        // which is why the latest month looked missing from the axis.
+        rightOffset:6, barSpacing:9, minBarSpacing:2,
+        lockVisibleTimeRangeOnResize:true,
+        tickMarkFormatter:_tick,
+      },
+      localization: { locale:'en-IN', dateFormat:'dd MMM yyyy' },
+      handleScroll: { mouseWheel:true, pressedMouseMove:true, horzTouchDrag:true, vertTouchDrag:false },
+      handleScale:  { mouseWheel:true, pinch:true, axisPressedMouseMove:{time:true,price:true} },
     });
 
     const lwMain = LightweightCharts.createChart(mainEl, { ...commonOpts(false), width:mainEl.clientWidth, height:mainEl.clientHeight });
@@ -11386,6 +11588,17 @@ function buildChart(type) {
     // A JS fallback keeps the chart working while Pyodide loads on first use.
     (function _miyeePro(){
       try {
+        // The momentum read, its markers, its shaded zone and its entry, stop
+        // and target lines are all computed on daily bars. Painting them over
+        // weekly or monthly candles would place daily levels against bars they
+        // were never derived from, so the overlay sits out those periods.
+        if (_periodFolded) {
+          const _c = document.getElementById('miyeeProCard');
+          if (_c) _c.style.display = 'none';
+          const _ob = document.getElementById('miyeeProToggle');
+          if (_ob) _ob.remove();
+          return;
+        }
         const _cl = sd.map(d => d.close);
 
         // ── Python (Pyodide) engine, loaded once and cached on window ──────────
@@ -11755,24 +11968,158 @@ def miyee_momentum(closes):
     });
 
     // ── Toolbar: overlay toggles + visible-range presets ─────────────────────
-    const _btn = (label, on) => `<button data-k="${label}" style="cursor:pointer;border:1px solid ${on?'#3b82f6':'#363c4e'};`
+    const _btn = (label, on, key) => `<button data-k="${key == null ? label : key}" style="cursor:pointer;border:1px solid ${on?'#3b82f6':'#363c4e'};`
       + `background:${on?'rgba(59,130,246,.18)':'transparent'};color:${on?'#93c5fd':'#94a3b8'};`
       + `font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;">${label}</button>`;
 
+    // Defaults are deliberately sparse. Six overlays switched on at once buries
+    // the price action under its own analysis, which is the main reason this
+    // chart did not feel like the terminals people are used to. Everything is
+    // still one click away.
+    // ══ Buy / Sell Zones ═════════════════════════════════════════════════════
+    // Two shaded bands: the area under price where buyers have repeatedly
+    // stepped in, and the area above it where sellers have repeatedly capped
+    // the move. They are read off the chart's own swing structure, not from a
+    // proprietary signal and not from anything predictive:
+    //
+    //   1. find swing lows and swing highs, a bar lower (higher) than the three
+    //      bars on either side;
+    //   2. keep the ones inside the lookback window;
+    //   3. cluster them where they sit within about half an ATR of each other,
+    //      because two lows a rupee apart are one level, not two;
+    //   4. take the cluster with the most touches below price as the buy zone
+    //      and the most touched cluster above price as the sell zone.
+    //
+    // A level that turned price three times is a level a lot of people are
+    // watching. That is the entire claim being made here, and the caption on
+    // the chart says so.
+    const _zoneBands = (() => {
+      try {
+        const N = rows.length;
+        if (N < 40) return null;
+        const look = Math.min(N, 160);
+        const from = N - look;
+        const hi = i => sd[rows[i]].high, lo = i => sd[rows[i]].low, cl = i => sd[rows[i]].close;
+        // Average true range over the window, as the tolerance for "same level".
+        let tr = 0, cnt = 0;
+        for (let i = Math.max(1, from); i < N; i++) {
+          const pc = cl(i-1);
+          tr += Math.max(hi(i)-lo(i), Math.abs(hi(i)-pc), Math.abs(lo(i)-pc)); cnt++;
+        }
+        const atr = cnt ? tr/cnt : 0;
+        if (!(atr > 0)) return null;
+        const tol = atr * 0.6;
+        const k = 3;
+        const lows = [], highs = [];
+        for (let i = Math.max(from, k); i < N - k; i++) {
+          let isLo = true, isHi = true;
+          for (let j = 1; j <= k; j++) {
+            if (lo(i) > lo(i-j) || lo(i) > lo(i+j)) isLo = false;
+            if (hi(i) < hi(i-j) || hi(i) < hi(i+j)) isHi = false;
+          }
+          if (isLo) lows.push(lo(i));
+          if (isHi) highs.push(hi(i));
+        }
+        const cluster = (vals) => {
+          if (!vals.length) return null;
+          const v = vals.slice().sort((a,b) => a-b);
+          let best = null, run = [v[0]];
+          const close = () => {
+            if (!best || run.length > best.n || (run.length === best.n && run.length > 1)) {
+              best = { n: run.length, lo: run[0], hi: run[run.length-1] };
+            }
+          };
+          for (let i = 1; i < v.length; i++) {
+            if (v[i] - run[run.length-1] <= tol) run.push(v[i]);
+            else { close(); run = [v[i]]; }
+          }
+          close();
+          return best;
+        };
+        const px = cl(N-1);
+        const below = cluster(lows.filter(x => x < px * 0.999));
+        const above = cluster(highs.filter(x => x > px * 1.001));
+        // A single touch is not a zone, it is a bar.
+        const pad = atr * 0.25;
+        const mk = (c) => (c && c.n >= 2)
+          ? { lo: c.lo - pad, hi: c.hi + pad, touches: c.n } : null;
+        const buy = mk(below), sell = mk(above);
+        if (!buy && !sell) return null;
+        return { buy, sell, atr };
+      } catch(e) { return null; }
+    })();
+
+    // A baseline series pinned at the band's floor and fed a flat line at its
+    // ceiling fills exactly the strip between the two, which is the only way to
+    // shade a price band with this library.
+    const _mkBand = (band, fill, lineCol, title) => {
+      if (!band) return [];
+      const ser = lwMain.addBaselineSeries({
+        baseValue: { type:'price', price: band.lo },
+        topLineColor: lineCol, topFillColor1: fill, topFillColor2: fill,
+        bottomLineColor: 'rgba(0,0,0,0)', bottomFillColor1: 'rgba(0,0,0,0)',
+        bottomFillColor2: 'rgba(0,0,0,0)',
+        lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title,
+        crosshairMarkerVisible: false,
+      });
+      ser.setData(rows.map(i => ({ time: toTs(sd[i]), value: band.hi })));
+      return [ser];
+    };
+    const _buyBand  = _zoneBands ? _mkBand(_zoneBands.buy,  'rgba(38,166,154,0.16)', 'rgba(38,166,154,0.55)', 'BUY ZONE')  : [];
+    const _sellBand = _zoneBands ? _mkBand(_zoneBands.sell, 'rgba(239,83,80,0.16)',  'rgba(239,83,80,0.55)',  'SELL ZONE') : [];
+    const _zoneSeries = _buyBand.concat(_sellBand);
+
     const OVERLAYS = { 'SMA200':{s:[s200s],on:s200Ready}, 'BB':{s:[bbU,bbL],on:false},
-      'Chandelier':{s:[chandS],on:true}, 'ATR Stop':{s:[trailS],on:true}, 'Donchian':{s:[donU,donL],on:false} };
+      'Chandelier':{s:[chandS],on:false}, 'ATR Stop':{s:[trailS],on:false}, 'Donchian':{s:[donU,donL],on:false} };
+    if (_zoneSeries.length) OVERLAYS['Buy/Sell Zones'] = { s:_zoneSeries, on:true };
+    // Chandelier, the ATR trailing stop and Donchian come from the daily risk
+    // model rather than from the closes on screen, so they cannot be folded.
+    if (_periodFolded) ['Chandelier','ATR Stop','Donchian'].forEach(k => {
+      if (OVERLAYS[k]) { OVERLAYS[k].on = false; OVERLAYS[k].locked = true; }
+    });
     const obEl = _id('lwOverlayBtns');
     const paintOverlays = () => {
       if (!obEl) return;
-      obEl.innerHTML = Object.keys(OVERLAYS).map(k => _btn(k, OVERLAYS[k].on)).join('');
+      obEl.innerHTML = Object.keys(OVERLAYS).map(k => OVERLAYS[k].locked
+        ? `<button disabled title="Derived from daily bars, so it is not shown on a ${_chartPeriod==='W'?'weekly':'monthly'} chart" style="border:1px solid #2a2e39;background:transparent;color:#5b6270;font-size:10.5px;padding:2px 8px;border-radius:5px;cursor:not-allowed;">${k}</button>`
+        : _btn(k, OVERLAYS[k].on)).join('');
       Object.keys(OVERLAYS).forEach(k => OVERLAYS[k].s.forEach(s => { try { s.applyOptions({visible:OVERLAYS[k].on}); } catch(e){} }));
-      obEl.querySelectorAll('button').forEach(b => b.onclick = () => { OVERLAYS[b.dataset.k].on = !OVERLAYS[b.dataset.k].on; paintOverlays(); });
+      obEl.querySelectorAll('button[data-k]').forEach(b => b.onclick = () => { OVERLAYS[b.dataset.k].on = !OVERLAYS[b.dataset.k].on; paintOverlays(); });
     };
     paintOverlays();
+
+    // ── Period selector ──────────────────────────────────────────────────────
+    const pbEl = _id('lwPeriodBtns');
+    const PERIODS = [['D','1D'],['W','1W'],['M','1M']];
+    const paintPeriods = () => {
+      if (!pbEl) return;
+      pbEl.innerHTML = PERIODS.map(([k,label]) => _btn(label, k===_chartPeriod, k)).join('');
+      pbEl.querySelectorAll('button').forEach(b => b.onclick = () => {
+        if (b.dataset.k === _chartPeriod) return;
+        _chartPeriod = b.dataset.k;
+        // Rebuild rather than patch. Every series, marker and price line on this
+        // chart is derived from one set of bars, so the only way to keep them
+        // consistent is to derive them all again.
+        buildChart('candle');
+      });
+    };
+    paintPeriods();
 
     const RANGES = {'1M':22,'3M':66,'6M':126,'1Y':252,'MAX':rows.length};
     const rbEl = _id('lwRangeBtns');
     let _activeRange = '3M';
+    // "3M" has to mean three months of calendar time whatever the period is, so
+    // the bar count is divided by how many days each folded bar covers. The
+    // floors stop a folded range collapsing to three or four candles, which the
+    // chart cannot zoom into anyway: the library caps how wide one bar may be,
+    // so asking for a window narrower than that quietly gets ignored.
+    const _rangeBars = (k) => {
+      if (k === 'MAX') return rows.length;
+      const days = RANGES[k];
+      if (_chartPeriod === 'W') return Math.max(12, Math.round(days / 5));
+      if (_chartPeriod === 'M') return Math.max(14, Math.round(days / 21));
+      return Math.max(20, days);
+    };
     const paintRanges = () => {
       if (!rbEl) return;
       rbEl.innerHTML = Object.keys(RANGES).map(k => _btn(k, k===_activeRange)).join('');
@@ -11780,8 +12127,27 @@ def miyee_momentum(closes):
     };
     const applyRange = (k) => {
       _activeRange = k;
-      const n = Math.min(RANGES[k], rows.length);
-      const r = { from: rows.length - n - 0.5, to: rows.length - 0.5 };
+      // The library will not draw a bar wider than a fixed maximum, so a window
+      // asking for fewer slots than the pane can hold at that width is silently
+      // refused and the view slides back to the oldest bars. That is why a
+      // monthly chart kept showing last year instead of last month. Widen the
+      // request to what the pane can actually honour, and when even the whole
+      // series is narrower than that, let the chart fit itself.
+      const MAXBAR = 50;
+      const slots = Math.ceil((mainEl.clientWidth || 900) / MAXBAR) + 1;
+      if (rows.length < slots) {
+        _panes.forEach(c => { try { c.timeScale().fitContent(); } catch(e){} });
+        paintRanges();
+        return;
+      }
+      const n = Math.min(Math.max(_rangeBars(k), slots), rows.length);
+      // The extra slots past the last bar are deliberate: the newest candle needs
+      // room for its own axis label, and a chart pinned hard against the price
+      // scale is the single thing that makes this look unlike a trading
+      // terminal. Scaled to the window, so thirteen weekly bars do not get the
+      // same gap as sixty six daily ones.
+      const pad = Math.max(2, Math.round(n * 0.06));
+      const r = { from: rows.length - n - 0.5, to: rows.length - 0.5 + pad };
       _panes.forEach(c => { try { c.timeScale().setVisibleLogicalRange(r); } catch(e){} });
       paintRanges();
     };
@@ -11848,7 +12214,22 @@ def miyee_momentum(closes):
     };
 
     const interp = CHART_INTERPRET['candle'];
-    document.getElementById('chartInterpretation').innerHTML = interp ? interp(analysisResult) : '';
+    let _interpHtml = interp ? interp(analysisResult) : '';
+    if (_zoneBands) {
+      const f = v => CUR() + (+v).toLocaleString('en-IN',{maximumFractionDigits:2});
+      const bits = [];
+      if (_zoneBands.buy)  bits.push(`<b style="color:#26a69a;">Buy zone ${f(_zoneBands.buy.lo)} to ${f(_zoneBands.buy.hi)}</b> (${_zoneBands.buy.touches} swing lows clustered there)`);
+      if (_zoneBands.sell) bits.push(`<b style="color:#ef5350;">Sell zone ${f(_zoneBands.sell.lo)} to ${f(_zoneBands.sell.hi)}</b> (${_zoneBands.sell.touches} swing highs clustered there)`);
+      _interpHtml += `<div style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.6;">
+        <b>Buy / Sell Zones.</b> ${bits.join(' &nbsp;·&nbsp; ')}.
+        <div style="color:var(--text3);font-size:11.5px;margin-top:6px;">
+          These are read off this chart's own swing structure: prices where the last ${'' + Math.min(rows.length,160)} bars
+          produced two or more turning points within half an average day's range of each other. A level that has
+          turned price several times is a level many people are watching, which is the whole of the claim.
+          It is not a forecast, it is not a signal to act, and zones break all the time, usually on the move that matters most.
+        </div></div>`;
+    }
+    document.getElementById('chartInterpretation').innerHTML = _interpHtml;
     return; // ← don't fall through to Chart.js
   }
 

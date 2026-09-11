@@ -510,7 +510,9 @@ group('fetch resilience — causes seen in production logs');
     const a = SRC.indexOf("      rows = Object.entries(ts)");
     const endMark = "        }).filter(r => +r['Close Price'] > 0).slice(-1300);";
     const b = SRC.indexOf(endMark, a) + endMark.length;
-    const parse = new Function('ts', 'let rows;\n' + SRC.slice(a, b).replace(/\r/g, '') + '\nreturn rows;');
+    // The parser formats dates through fmtDMY now, so the sandbox needs it.
+    const dateSrc = slice('const MON3 =', 'function parseDate(s)', 'fmtDMY');
+    const parse = new Function('ts', dateSrc + '\nlet rows;\n' + SRC.slice(a, b).replace(/\r/g, '') + '\nreturn rows;');
     const free = { '2026-08-27': {'1. open':'100','2. high':'110','3. low':'95','4. close':'105','5. volume':'12345'} };
     const adj  = { '2026-08-27': {'1. open':'100','2. high':'110','3. low':'95','4. close':'105','5. adjusted close':'105','6. volume':'12345'} };
     eq('free endpoint close parses', parse(free)[0]['Close Price'], '105.00');
@@ -519,7 +521,127 @@ group('fetch resilience — causes seen in production logs');
     eq('adjusted volume still parses (6. volume)', parse(adj)[0]['Total Traded Quantity'], '12345');
     eq('missing volume degrades to 0',
        parse({'2026-08-27':{'1. open':'1','2. high':'1','3. low':'1','4. close':'1'}})[0]['Total Traded Quantity'], '0');
+    // September is the one month a browser abbreviates to four letters.
+    eq('a September bar keeps its month through the parser',
+       parse({'2026-09-10':{'1. open':'1','2. high':'1','3. low':'1','4. close':'1','5. volume':'1'}})[0]['Date'],
+       '10-Sep-2026');
   }
+}
+
+// ── market dashboard loads fast ────────────────────────────────────────────
+group('market dashboard — first paint');
+{
+  // The dashboard used to go straight to the free public relays while the
+  // analyser used the owner's Worker first, which is why one stock loaded
+  // quickly and nine indices crawled.
+  ok('indices try the owner proxy before the public relays',
+     /function _idxUrls[\s\S]{0,600}_selfProxyUrl\(\)[\s\S]{0,300}allorigins/.test(SRC),
+     'the Worker is not tried first for indices');
+  ok('all nine indices are fetched at once, not three at a time',
+     /Array\.from\(\{length:MKT_INDICES\.length\}, worker\)/.test(SRC), 'still capped at three');
+  ok('the last result is cached for the next visit', /function _mktCacheSave/.test(SRC), 'no cache');
+  ok('the cache paints before the network is touched',
+     /const cached = force \? null : _mktCacheLoad\(\)/.test(SRC), 'cache not read first');
+  ok('a forced refresh skips the cache', /force \? null :/.test(SRC), 'refresh would serve stale');
+  ok('cached figures are labelled as cached, not as current',
+     /cached \$\{new Date\(_mktCacheAge\)/.test(SRC), 'stale numbers shown as live');
+  ok('a stale cache is not painted at all', /MKT_CACHE_MAX_AGE/.test(SRC), 'no age limit');
+
+  const g = load(slice('const MKT_CACHE_KEY', 'async function loadMarketDashboard'),
+                 ['_mktCacheSave','_mktCacheLoad','MKT_CACHE_KEY'],
+                 { sessionStorage: (() => { const m = {};
+                     return { getItem:k=>(k in m?m[k]:null), setItem:(k,v)=>{m[k]=String(v);},
+                              removeItem:k=>{delete m[k];} }; })() });
+  const rows = [{date:new Date('2026-09-08'),open:1,high:2,low:0.5,close:1.5,volume:10},
+                {date:new Date('2026-09-09'),open:1.5,high:2.5,low:1,close:2,volume:20}];
+  g._mktCacheSave({ '^NSEI': { price:24000, prev:23900, read:{trend:'Uptrend'}, rows } });
+  const back = g._mktCacheLoad();
+  ok('a saved dashboard reloads', !!(back && back.data && back.data['^NSEI']), 'cache did not round trip');
+  eq('the price survives', back.data['^NSEI'].price, 24000);
+  eq('every bar survives', back.data['^NSEI'].rows.length, 2);
+  ok('bar dates come back as real dates',
+     back.data['^NSEI'].rows[1].date instanceof Date && !isNaN(back.data['^NSEI'].rows[1].date),
+     'dates did not survive');
+  eq('the trend read survives', back.data['^NSEI'].read.trend, 'Uptrend');
+}
+
+// ── chart ──────────────────────────────────────────────────────────────────
+group('chart — period, axis and zones');
+{
+  ok('the chart offers a period selector', /id="lwPeriodBtns"/.test(SRC), 'no period buttons');
+  ok('daily, weekly and monthly are the periods',
+     /PERIODS = \[\['D','1D'\],\['W','1W'\],\['M','1M'\]\]/.test(SRC), 'periods missing');
+  ok('switching period rebuilds the chart rather than patching series',
+     /_chartPeriod = b\.dataset\.k;[\s\S]{0,400}buildChart\('candle'\)/.test(SRC), 'patches in place');
+  // Reusing daily averages on weekly candles would label a 20 day line as a
+  // 20 week one, which is wrong in a way that still looks plausible.
+  ok('folded periods recompute every indicator',
+     /_periodFolded[\s\S]{0,700}sma20  = calcSMA\(closes/.test(SRC), 'indicators not recomputed');
+  ok('overlays derived from daily bars are disabled, not left drawing',
+     /\['Chandelier','ATR Stop','Donchian'\]\.forEach/.test(SRC), 'daily overlays still drawn');
+  ok('the daily momentum overlay sits out folded periods',
+     /if \(_periodFolded\) \{[\s\S]{0,200}miyeeProCard/.test(SRC), 'daily markers on weekly bars');
+
+  ok('the time axis formats its own tick labels', /tickMarkFormatter:_tick/.test(SRC), 'no tick formatter');
+  ok('the newest bar gets room for its own date label',
+     /const pad = Math\.max\(2, Math\.round\(n \* 0\.06\)\)/.test(SRC), 'no right padding');
+  // fixLeftEdge pinned the window to the oldest bar whenever the requested
+  // window was narrower than the library would draw, so a monthly chart showed
+  // last year instead of last month.
+  ok('the range is not pinned to the oldest bar', !/fixLeftEdge:true/.test(SRC), 'still pinned left');
+  ok('a window narrower than the library will draw is widened',
+     /const slots = Math\.ceil\(\(mainEl\.clientWidth/.test(SRC), 'narrow windows silently ignored');
+
+  ok('buy and sell zones are drawn as bands', /_zoneBands/.test(SRC) && /BUY ZONE/.test(SRC), 'no zones');
+  ok('a zone needs more than one touch', /c\.n >= 2/.test(SRC), 'a single bar counts as a zone');
+  ok('the zones say what they are under the chart',
+     /swing lows clustered there/.test(SRC), 'zones are unexplained');
+  ok('the zones are not presented as a forecast',
+     /It is not a forecast, it is not a signal to act/.test(SRC), 'no honesty caption');
+
+  // Six overlays at once buried the price action; that was the main reason the
+  // chart did not read like the terminals people are used to.
+  ok('the default view is not overloaded with overlays',
+     /'Chandelier':\{s:\[chandS\],on:false\}, 'ATR Stop':\{s:\[trailS\],on:false\}/.test(SRC),
+     'chart still opens with every overlay on');
+}
+
+// ── dates: the September bug ───────────────────────────────────────────────
+group('dates survive the round trip in every month');
+{
+  const g = load(slice('const MON3 =', 'function prepareData', 'dates'), ['fmtDMY','parseDate','MON3']);
+  const { fmtDMY, parseDate } = g;
+
+  // toLocaleDateString with month:'short' returns "Sept" for September and three
+  // letters for everything else. The old parser keyed on a three letter table
+  // and fell through "|| 0", so every September bar came back as JANUARY of the
+  // same year. It then sorted before its neighbours and the chart's
+  // ascending-timestamp filter dropped it, which is why September vanished.
+  const bad = [];
+  for (let m = 0; m < 12; m++) {
+    const d = new Date(2026, m, 10);
+    const back = parseDate(fmtDMY(d));
+    if (back.getFullYear() !== 2026 || back.getMonth() !== m || back.getDate() !== 10)
+      bad.push(MON3[m] + ' -> ' + fmtDMY(d) + ' -> ' + back.toDateString());
+  }
+  eq('all twelve months survive format then parse', bad.join(' | '), '');
+
+  eq('September formats as a three letter month', fmtDMY(new Date(2026, 8, 10)), '10-Sep-2026');
+  eq('the browser four letter form still parses', parseDate('10-Sept-2026').getMonth(), 8);
+  eq('a full month name still parses',            parseDate('10-September-2026').getMonth(), 8);
+  eq('an upper case month still parses',          parseDate('10-SEP-2026').getMonth(), 8);
+  eq('a numeric month still parses',              parseDate('10-09-2026').getMonth(), 8);
+
+  // The old code turned an unrecognised month into January. A wrong date that
+  // looks valid is worse than no date: the chart silently drops an invalid one.
+  ok('an unknown month is invalid, not silently January',
+     isNaN(parseDate('10-Xyz-2026').getTime()), 'unknown month still resolves to a date');
+
+  // No producer may go back to asking the browser for a month name.
+  eq('no date string is built from a locale month abbreviation',
+     (SRC.match(/month:'short',year:'numeric'\}\)\.replace\(\/ \/g,'-'\)/g) || []).length, 0);
+  ok('the deterministic formatter is used instead',
+     /function fmtDMY\(d\)/.test(SRC) && SRC.includes('fmtDMY(r.date)'), 'fmtDMY missing');
 }
 
 // ── TwelveData setup step ──────────────────────────────────────────────────
