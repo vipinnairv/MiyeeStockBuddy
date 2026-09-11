@@ -528,6 +528,42 @@ group('fetch resilience — causes seen in production logs');
   }
 }
 
+// ── deployment ─────────────────────────────────────────────────────────────
+group('github pages deployment');
+{
+  const fs2 = require('fs'), path2 = require('path');
+  const wf = path2.join(__dirname, '..', '.github', 'workflows', 'pages.yml');
+  ok('a Pages workflow exists', fs2.existsSync(wf), '.github/workflows/pages.yml missing');
+  const y = fs2.existsSync(wf) ? fs2.readFileSync(wf, 'utf8') : '';
+
+  // A site is only as trustworthy as the build behind it.
+  ok('the deploy waits for the tests', /needs: verify/.test(y), 'deploys without testing');
+  ok('the build must match its source before shipping',
+     /node build\.js --check/.test(y), 'could publish an index.html that src/ cannot produce');
+  ok('the JS suite gates the deploy', /node tests\/run\.js/.test(y), 'no JS tests before deploy');
+  ok('the Python suite gates the deploy', /unittest discover/.test(y), 'no Python tests before deploy');
+
+  // The page fetches the company list from its own origin, so the two must
+  // ship together or the stock search comes up empty with no way to recover.
+  ok('both files the app needs are published',
+     /cp index\.html india-stocks\.json _site\//.test(y), 'the company list would 404');
+  ok('Jekyll is kept away from the output', /touch _site\/\.nojekyll/.test(y), 'no .nojekyll');
+
+  // A green deploy step does not mean a working site.
+  ok('the live site is checked after deploying',
+     /Check the live site/.test(y) && /india-stocks\.json/.test(y), 'no post deploy check');
+  ok('the live company list is checked for content, not just a 200',
+     /live company list looks wrong/.test(y), 'a truncated list would pass');
+
+  ok('only one deployment runs at a time', /group: pages/.test(y), 'concurrent deploys');
+  // A cancelled Pages deployment can leave the site serving two builds at once.
+  ok('an in flight deployment is not cancelled',
+     /cancel-in-progress: false/.test(y), 'a cancelled deploy can half publish');
+  ok('permissions are scoped to what a deploy needs',
+     /pages: write/.test(y) && /id-token: write/.test(y) && /contents: read/.test(y),
+     'over-broad or missing permissions');
+}
+
 // ── market dashboard loads fast ────────────────────────────────────────────
 group('market dashboard — first paint');
 {
