@@ -2211,15 +2211,15 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
             <div style="display:flex;gap:14px;align-items:center;padding:7px 14px;background:rgba(19,23,34,0.75);font-size:11.5px;border-bottom:1px solid #363c4e;flex-wrap:wrap;">
               <span style="color:#26a69a;font-weight:700;">▲ Bull</span>
               <span style="color:#ef5350;font-weight:700;">▼ Bear</span>
-              <span style="color:#f59e0b;font-weight:600;">── SMA 20</span>
-              <span style="color:#3b82f6;font-weight:600;">── SMA 50</span>
+              <span id="lw-legend-sma20" style="color:#f59e0b;font-weight:600;">── SMA 20</span>
+              <span id="lw-legend-sma50" style="color:#3b82f6;font-weight:600;">── SMA 50</span>
               <span id="lw-legend-sma200" style="color:#a855f7;font-weight:600;">── SMA 200</span>
               <span style="color:rgba(59,130,246,0.6);">■ Vol</span>
               <span style="color:rgba(255,255,255,.25);font-size:10px;margin-left:auto;">🖱 Scroll to zoom · Drag to pan</span>
             </div>
             <div id="lw-chart-main" style="height:420px;"></div>
             <div style="padding:4px 12px;background:rgba(19,23,34,0.8);font-size:10px;color:#64748b;border-top:1px solid #363c4e;display:flex;gap:14px;align-items:center;">
-              <span style="color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">RSI (14)</span>
+              <span id="lw-legend-rsi" style="color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">RSI (14)</span>
               <span style="color:#a855f7;">── RSI</span>
               <span style="color:rgba(239,83,80,.7);">╌ 70</span>
               <span style="color:rgba(38,166,154,.7);">╌ 30</span>
@@ -2227,7 +2227,7 @@ table.ln-tbl tbody tr:nth-child(even) td{background:var(--ln-zebra);}
             </div>
             <div id="lw-chart-rsi" style="height:110px;"></div>
             <div style="padding:4px 12px;background:rgba(19,23,34,0.8);font-size:10px;color:#64748b;border-top:1px solid #363c4e;display:flex;gap:14px;align-items:center;">
-              <span style="color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">MACD (12,26,9)</span>
+              <span id="lw-legend-macd" style="color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">MACD (12,26,9)</span>
               <span style="color:#f59e0b;">── MACD</span>
               <span style="color:#ef4444;">── Signal</span>
               <span style="color:rgba(38,166,154,0.7);">■ Histogram</span>
@@ -11840,12 +11840,37 @@ def miyee_momentum(closes):
     s20s.setData(seriesBy(i => sma20[sl+i]));
     s50s.setData(seriesBy(i => sma50[sl+i]));
 
+    // ── Honest indicator labels ──────────────────────────────────────────────
+    // Every average here is built as calcSMA(closes, Math.min(period, len-1)),
+    // so with too little history the period silently collapses - an SMA149 still
+    // labelled "SMA 200" - and yields a stub at the right edge that looks like
+    // nothing rendered at all. That matters far more on a weekly or monthly
+    // chart, where 400 daily bars fold down to 81 or 20 and several indicators
+    // lose their stated period at once. One helper labels them all, so a line on
+    // this chart is never called something it is not.
+    //
+    // MACD is included because it needs slow + signal bars, 35 of them, before
+    // the signal line exists at all; below that the pane is simply empty and the
+    // reader is left guessing whether it is broken.
+    const _periodName = _chartPeriod === 'W' ? 'weekly' : _chartPeriod === 'M' ? 'monthly' : 'daily';
+    const _legendState = (need) => {
+      const have = closes.length;
+      return { ready: have > need, have, pts: have > need ? have - need : 0 };
+    };
+    const _paintLegend = (elId, label, need, extraTitle) => {
+      const el = document.getElementById(elId); if (!el) return;
+      const st = _legendState(need);
+      el.textContent = !st.ready ? `${label} · needs ${need}+ bars (have ${st.have})`
+                     : st.pts < 20 ? `${label} · only ${st.pts} bars long`
+                     : label;
+      el.style.opacity = st.ready ? '1' : '.45';
+      el.title = st.ready ? (extraTitle || '')
+        : `A ${need} period reading needs more than ${need} ${_periodName} bars. `
+          + `There are ${st.have}, so it is left out rather than drawn at a shorter period and labelled as if it were not.`;
+      return st;
+    };
+
     // ── SMA200 + Bollinger ───────────────────────────────────────────────────
-    // sma200 is built as calcSMA(closes, Math.min(200, closes.length-1)), so with
-    // under ~201 bars the period silently collapses (SMA149, SMA179...) while
-    // still being labelled "SMA 200". Worse, it then yields only ~2 points - a
-    // stub at the right edge that looks like nothing rendered at all. Draw it
-    // only when a TRUE 200-period average exists, and say why when it does not.
     const s200Ready = closes.length > 200;
     const s200Pts   = s200Ready ? closes.length - 200 : 0;
     const s200s = mkLine('#a855f7', 1.5);
@@ -11855,15 +11880,13 @@ def miyee_momentum(closes):
     // It still draws; it just no longer gets a vote on the price scale.
     try { s200s.applyOptions({ autoscaleInfoProvider: () => null }); } catch(e){}
     s200s.setData(s200Ready ? seriesBy(i => sma200[sl+i]) : rows.map(i => ({ time:toTs(sd[i]) })));
-    const _s200Leg = document.getElementById('lw-legend-sma200');
-    if (_s200Leg) {
-      _s200Leg.textContent = !s200Ready ? `── SMA 200 · needs 200+ bars (have ${closes.length})`
-                           : s200Pts < 20 ? `── SMA 200 · only ${s200Pts} bars long`
-                           : '── SMA 200';
-      if (s200Ready) _s200Leg.title = 'Excluded from the price scale, so it cannot squash the candles. It may sit off-screen when price has moved far from its 200-day average.';
-      _s200Leg.style.opacity = s200Ready ? '1' : '.45';
-      _s200Leg.title = s200Ready ? '' : 'A 200-day average needs more than 200 bars of history. Not drawn rather than shown at a shorter period.';
-    }
+    _paintLegend('lw-legend-sma20',  '── SMA 20',  20);
+    _paintLegend('lw-legend-sma50',  '── SMA 50',  50);
+    _paintLegend('lw-legend-sma200', '── SMA 200', 200,
+      'Excluded from the price scale, so it cannot squash the candles. It may sit off-screen when price has moved far from its 200 bar average.');
+    _paintLegend('lw-legend-rsi',    'RSI (14)',   14);
+    // 26 for the slow average plus 9 more before the signal line has a value.
+    _paintLegend('lw-legend-macd',   'MACD (12,26,9)', 35);
     const bbU = mkLine('rgba(148,163,184,.5)', 1), bbL = mkLine('rgba(148,163,184,.5)', 1);
     if (Array.isArray(bb)) {
       bbU.setData(seriesBy(i => { const v=bb[sl+i]; return v ? v.upper : null; }));

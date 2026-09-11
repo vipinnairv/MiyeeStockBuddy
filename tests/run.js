@@ -599,6 +599,30 @@ group('chart — period, axis and zones');
   ok('the zones are not presented as a forecast',
      /It is not a forecast, it is not a signal to act/.test(SRC), 'no honesty caption');
 
+  // An average built as calcSMA(closes, Math.min(period, len-1)) silently
+  // collapses when history is short: an SMA149 still labelled "SMA 200". This
+  // bites hardest on a folded chart, where 400 daily bars become 20 monthly
+  // ones and several indicators lose their stated period at once.
+  ok('one helper labels every indicator, not just SMA 200',
+     /const _paintLegend = \(elId, label, need, extraTitle\)/.test(SRC), 'no shared labeller');
+  ['sma20','sma50','sma200','rsi','macd'].forEach(k =>
+    ok('the ' + k + ' legend can be rewritten', new RegExp('id="lw-legend-' + k + '"').test(SRC),
+       'no id on the ' + k + ' legend'));
+  ok('SMA 20 and SMA 50 are labelled too',
+     /_paintLegend\('lw-legend-sma20',  '── SMA 20',  20\)/.test(SRC) &&
+     /_paintLegend\('lw-legend-sma50',  '── SMA 50',  50\)/.test(SRC), 'short averages unlabelled');
+  // MACD needs the slow average plus the signal period before the signal line
+  // exists; below that the pane is empty and looks broken rather than honest.
+  ok('MACD declares the 35 bars it needs',
+     /_paintLegend\('lw-legend-macd',   'MACD \(12,26,9\)', 35\)/.test(SRC), 'MACD unlabelled');
+  ok('RSI declares the bars it needs',
+     /_paintLegend\('lw-legend-rsi',    'RSI \(14\)',   14\)/.test(SRC), 'RSI unlabelled');
+  ok('a short indicator is dimmed, not just annotated',
+     /el\.style\.opacity = st\.ready \? '1' : '\.45'/.test(SRC), 'no dimming');
+  ok('the tooltip names the period being folded to',
+     /A \$\{need\} period reading needs more than \$\{need\} \$\{_periodName\} bars/.test(SRC),
+     'tooltip does not say daily, weekly or monthly');
+
   // Six overlays at once buried the price action; that was the main reason the
   // chart did not read like the terminals people are used to.
   ok('the default view is not overloaded with overlays',
