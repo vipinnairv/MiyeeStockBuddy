@@ -1,0 +1,107 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the code, write a Pages deployment, and mint the OIDC
+# token deploy-pages needs. Nothing else.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. cancel-in-progress is deliberately false: a half
+# finished Pages deployment that gets cancelled can leave the site serving a
+# mixture of two builds.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # The site is only as trustworthy as the build behind it, so the same checks
+  # that gate a pull request gate the deployment. A red suite stops the deploy
+  # rather than publishing over a working site.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm install --no-audit --no-fund
+      # index.html is generated from src/. Deploying a copy that no longer
+      # matches its source would make the repository a lie about the live site.
+      - run: node build.js --check
+      - run: node tests/run.js
+      - run: python -m unittest discover -s tests -p 'test_*.py'
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two files, because two files are all the app fetches: the page itself
+      # and the Indian company list it loads at runtime. Everything else the
+      # page needs comes from a CDN. Publishing src/, tests/ and node_modules
+      # would multiply the artifact size for nothing.
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp index.html india-stocks.json _site/
+          # Stop Jekyll touching the output. Nothing here needs processing and
+          # Jekyll silently drops files whose names begin with an underscore.
+          touch _site/.nojekyll
+          ls -la _site
+          # The list is fetched from the page's own origin, so the two must ship
+          # together or the stock search comes up empty with no way to recover.
+          test -s _site/index.html
+          node -e "
+            const rows = require('./_site/india-stocks.json');
+            if (!Array.isArray(rows) || rows.length < 3000)
+              throw new Error('company list looks wrong: ' + (rows && rows.length));
+            console.log('company list ok:', rows.length, 'rows');
+          "
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      # Prove the deployment actually serves both files, rather than trusting
+      # that a green deploy step means a working site. A page that loads while
+      # its company list 404s is the exact failure this app cannot detect for
+      # itself, because the browser reports it as an empty search.
+      - name: Check the live site
+        run: |
+          set -euo pipefail
+          URL="${{ steps.deployment.outputs.page_url }}"
+          echo "Deployed to $URL"
+          for i in $(seq 1 10); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -L "$URL" || echo 000)
+            [ "$code" = "200" ] && break
+            echo "attempt $i: page returned $code, waiting"
+            sleep 6
+          done
+          [ "$code" = "200" ] || { echo "page never became available (last $code)"; exit 1; }
+
+          json=$(curl -sS -L -o /tmp/list.json -w '%{http_code}' "${URL}india-stocks.json" || echo 000)
+          [ "$json" = "200" ] || { echo "india-stocks.json returned $json"; exit 1; }
+          node -e "
+            const rows = require('/tmp/list.json');
+            if (!Array.isArray(rows) || rows.length < 3000)
+              throw new Error('live company list looks wrong: ' + (rows && rows.length));
+            console.log('live site serves', rows.length, 'companies');
+          "
+          echo "Live and serving both files: $URL"
