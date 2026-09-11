@@ -592,7 +592,15 @@ group('chart — period, axis and zones');
   ok('a window narrower than the library will draw is widened',
      /const slots = Math\.ceil\(\(mainEl\.clientWidth/.test(SRC), 'narrow windows silently ignored');
 
-  ok('buy and sell zones are drawn as bands', /_zoneBands/.test(SRC) && /BUY ZONE/.test(SRC), 'no zones');
+  ok('the zone bands are drawn', /_zoneBands/.test(SRC) && /BUY ZONE/.test(SRC), 'no zones');
+  ok('the feature is named Miyee Flow',
+     /OVERLAYS\['Miyee Flow'\]/.test(SRC) && /<b>Miyee Flow\.<\/b>/.test(SRC), 'not renamed');
+  // The bands keep the plain words for what each one is. Stamping the product
+  // name on both axis labels would say less than "BUY ZONE" and "SELL ZONE" do.
+  ok('each band still says which side it is',
+     /'BUY ZONE'/.test(SRC) && /'SELL ZONE'/.test(SRC), 'band labels lost');
+  ok('no trademarked third party name is used anywhere',
+     !/Phantom\s*Flow/i.test(SRC), 'another company name shipped in the app');
   ok('a zone needs more than one touch', /c\.n >= 2/.test(SRC), 'a single bar counts as a zone');
   ok('the zones say what they are under the chart',
      /swing lows clustered there/.test(SRC), 'zones are unexplained');
